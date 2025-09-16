@@ -1,0 +1,50 @@
+!!!
+%html
+  %head
+    %title CICD工具
+    %link(rel="stylesheet" href="/style.css")
+  %body
+    %header
+      %h1 CICD自动化部署工具
+      .nav
+        - if current_user
+          %span 当前用户: #{current_user.username}
+          %a(href="/logout") 退出登录
+        - else
+          %a(href="/login") 登录
+    %main
+      - if flash[:success]
+        .flash.success= flash[:success]
+      - if flash[:error]
+        .flash.error= flash[:error]
+      - if flash[:info]
+        .flash.info= flash[:info]
+      
+      %div.actions
+        %a.button(href="/projects/new") 新建项目
+      
+      %table.projects
+        %thead
+          %tr
+            %th ID
+            %th 项目名称
+            %th 代码仓库类型
+            %th 代码仓库地址
+            %th 分支
+            %th 操作
+        %tbody
+          - @projects.each do |project|
+            %tr
+              %td= project.id
+              %td= project.name
+              %td= project.repo_type
+              %td= project.repo_url
+              %td= project.branch
+              %td
+                %a.button.small(href="/projects/#{project.id}/edit") 编辑
+                %a.button.small.primary(href="/projects/#{project.id}/deploy") 部署
+                %a.button.small.secondary(href="/projects/#{project.id}/backups") 备份管理
+                %a.button.small.secondary(href="/projects/#{project.id}/history") 部署历史
+                %a.button.small.danger(href="/projects/#{project.id}/delete" onclick="return confirm('确定要删除这个项目吗？');") 删除
+    %footer
+      %p CICD工具 &copy; #{Time.now.year}

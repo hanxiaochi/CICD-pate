@@ -1,0 +1,51 @@
+!!!
+%html
+  %head
+    %title #{@project.new? ? '新建项目' : '编辑项目'} - CICD工具
+    %link(rel="stylesheet" href="/style.css")
+  %body
+    %header
+      %h1 CICD自动化部署工具 - #{@project.new? ? '新建项目' : '编辑项目'}
+      %a(href="/") 返回首页
+    %main
+      .project-form
+        - if flash[:error]
+          .flash.error= flash[:error]
+        %form(action="#{@project.new? ? '/projects' : "/projects/#{@project.id}"}" method="post")
+          %div.form-group
+            %label 项目名称 *
+            %input(type="text" name="name" value="#{@project.name}" required)
+          %div.form-group
+            %label 代码仓库类型 *
+            %select(name="repo_type" required)
+              %option(value="git" #{@project.repo_type == 'git' ? 'selected' : ''}) Git
+              %option(value="svn" #{@project.repo_type == 'svn' ? 'selected' : ''}) SVN
+          %div.form-group
+            %label 代码仓库地址 *
+            %input(type="text" name="repo_url" value="#{@project.repo_url}" required placeholder="https://github.com/user/repo.git 或 svn://example.com/repo")
+          %div.form-group
+            %label 分支/标签
+            %input(type="text" name="branch" value="#{@project.branch || 'master'}" placeholder="默认为master")
+          %div.form-group
+            %label 构建脚本
+            %textarea(name="build_script" rows="4" placeholder="npm install && npm run build")= @project.build_script
+          %div.form-group
+            %label 构建产物路径
+            %input(type="text" name="artifact_path" value="#{@project.artifact_path}" placeholder="如：dist/app.tar.gz 或 build/output.jar")
+          %div.form-group
+            %label 部署服务器 *
+            %input(type="text" name="deploy_server" value="#{@project.deploy_server}" required placeholder="格式：user@host:port，默认为root用户和22端口")
+          %div.form-group
+            %label 部署目录 *
+            %input(type="text" name="deploy_path" value="#{@project.deploy_path}" required placeholder="如：/var/www/myapp")
+          %div.form-group
+            %label 启动脚本
+            %textarea(name="start_script" rows="4" placeholder="如：systemctl restart myapp 或 /var/www/myapp/start.sh")= @project.start_script
+          %div.form-group
+            %label 备份目录
+            %input(type="text" name="backup_path" value="#{@project.backup_path}" placeholder="如：/var/backups")
+          %div.form-group
+            %button(type="submit") #{@project.new? ? '创建' : '更新'}项目
+            %a.button.secondary(href="/") 取消
+    %footer
+      %p CICD工具 &copy; #{Time.now.year}
