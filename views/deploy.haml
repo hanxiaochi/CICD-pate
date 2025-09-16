@@ -50,5 +50,13 @@
           %div.form-group
             %button(type="submit" class="danger") 确认部署
             %a.button.secondary(href="/") 取消
+        
+        %div.docker-actions
+          %h3 Docker操作
+          %p 注意：以下操作仅在配置了Docker Compose文件时有效
+          %div.form-group
+            %a.button.docker(href="/projects/#{@project.id}/docker/start") 启动Docker服务
+            %a.button.docker(href="/projects/#{@project.id}/docker/stop") 停止Docker服务
+            %a.button.docker(href="/projects/#{@project.id}/docker/restart") 重启Docker服务
     %footer
       %p CICD工具 &copy; #{Time.now.year}

@@ -39,8 +39,29 @@
             %label 部署目录 *
             %input(type="text" name="deploy_path" value="#{@project.deploy_path}" required placeholder="如：/var/www/myapp")
           %div.form-group
-            %label 启动脚本
-            %textarea(name="start_script" rows="4" placeholder="如：systemctl restart myapp 或 /var/www/myapp/start.sh")= @project.start_script
+            %label 启动方式
+            %select(name="start_type" id="start_type")
+              %option(value="script_path" #{@project.start_type == 'script_path' || @project.start_script && @project.start_script.end_with?('.sh') ? 'selected' : ''}) 根据目录填写启动脚本
+              %option(value="custom_command" #{@project.start_type == 'custom_command' ? 'selected' : ''}) 自定义启动命令
+          %div.form-group
+            %label 启动脚本路径
+            %input(type="text" name="start_script_path" id="start_script_path" value="#{@project.start_script && @project.start_script.end_with?('.sh') ? @project.start_script : ''}" placeholder="如：/var/www/myapp/start.sh")
+          %div.form-group
+            %label 自定义启动命令
+            %textarea(name="custom_start_command" id="custom_start_command" rows="4" placeholder="如：systemctl restart myapp 或 nohup python app.py > /dev/null 2>&1 &")= @project.start_script && !@project.start_script.end_with?('.sh') && @project.start_type != 'script_path' ? @project.start_script : ''
+          %div.form-group
+            %label 启动模式
+            %select(name="start_mode")
+              %option(value="default" #{@project.start_mode == 'default' ? 'selected' : ''}) 默认执行
+              %option(value="nohup" #{@project.start_mode == 'nohup' ? 'selected' : ''}) 使用nohup启动 (仅对脚本路径有效)
+          %div.form-group
+            %label 停止模式
+            %select(name="stop_mode")
+              %option(value="sh_script" #{@project.stop_mode == 'sh_script' ? 'selected' : ''}) 使用sh脚本关闭
+              %option(value="kill_process" #{@project.stop_mode == 'kill_process' ? 'selected' : ''}) 根据PID直接kill -9
+          %div.form-group
+            %label Docker Compose文件路径
+            %input(type="text" name="docker_compose_file" value="#{@project.docker_compose_file}" placeholder="如：docker-compose.yml")
           %div.form-group
             %label 备份目录
             %input(type="text" name="backup_path" value="#{@project.backup_path}" placeholder="如：/var/backups")
@@ -49,3 +70,32 @@
             %a.button.secondary(href="/") 取消
     %footer
       %p CICD工具 &copy; #{Time.now.year}
+    
+    :javascript
+      document.addEventListener('DOMContentLoaded', function() {
+        const startTypeSelect = document.getElementById('start_type');
+        const scriptPathGroup = document.querySelector('input[name="start_script_path"]').closest('.form-group');
+        const customCommandGroup = document.querySelector('textarea[name="custom_start_command"]').closest('.form-group');
+        const startModeGroup = document.querySelector('select[name="start_mode"]').closest('.form-group');
+        
+        // 根据选择的启动方式显示/隐藏相关输入框
+        function toggleStartOptions() {
+          const selectedType = startTypeSelect.value;
+          
+          if (selectedType === 'script_path') {
+            scriptPathGroup.style.display = 'block';
+            customCommandGroup.style.display = 'none';
+            startModeGroup.style.display = 'block';
+          } else if (selectedType === 'custom_command') {
+            scriptPathGroup.style.display = 'none';
+            customCommandGroup.style.display = 'block';
+            startModeGroup.style.display = 'none';
+          }
+        }
+        
+        // 初始化显示状态
+        toggleStartOptions();
+        
+        // 添加事件监听器
+        startTypeSelect.addEventListener('change', toggleStartOptions);
+      });

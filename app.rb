@@ -10,10 +10,30 @@ require 'fileutils'
 require 'json'
 require 'time'
 
+# 读取配置文件
+def load_config
+  config_path = File.join(File.dirname(__FILE__), 'config.json')
+  if File.exist?(config_path)
+    JSON.parse(File.read(config_path))
+  else
+    # 默认配置
+    {
+      "ssh_default_port": 22,
+      "app_port": 4567,
+      "log_level": "info",
+      "temp_dir": "./tmp",
+      "docker_support": true
+    }
+  end
+end
+
+# 全局配置变量
+CONFIG = load_config
+
 # 配置Sinatra应用
 configure do
   set :bind, '0.0.0.0'  # 绑定到所有网络接口，便于在Linux服务器上访问
-  set :port, 4567
+  set :port, CONFIG['app_port'] || 4567
   set :views, './views'
   set :public_folder, './public'
   enable :sessions
@@ -42,9 +62,37 @@ unless DB.table_exists?(:projects)
     String :deploy_path
     String :start_script
     String :backup_path
+    String :start_mode, :default => 'default' # default, sh_script, nohup
+    String :stop_mode, :default => 'sh_script' # sh_script, kill_process
+    String :docker_compose_file, :default => ''
+    String :start_type, :default => 'script_path' # script_path, command, docker
     Time :created_at, :default => Time.now
     Time :updated_at, :default => Time.now
   end
+end
+
+# 如果表已存在但缺少新字段，添加这些字段
+alter_table_sqls = [
+  "ALTER TABLE projects ADD COLUMN IF NOT EXISTS start_mode TEXT DEFAULT 'default'",
+  "ALTER TABLE projects ADD COLUMN IF NOT EXISTS stop_mode TEXT DEFAULT 'sh_script'",
+  "ALTER TABLE projects ADD COLUMN IF NOT EXISTS docker_compose_file TEXT DEFAULT ''",
+  "ALTER TABLE projects ADD COLUMN IF NOT EXISTS start_type TEXT DEFAULT 'script_path'"
+]
+alter_table_sqls.each do |sql|
+  begin
+    DB.run(sql)
+  rescue => e
+    # 如果字段已存在，忽略错误
+  end
+end
+
+# 更新现有记录的start_mode默认值
+begin
+  if DB.table_exists?(:projects) && DB[:projects].columns.include?(:start_mode)
+    DB[:projects].where(:start_mode => 'sh_script').update(:start_mode => 'default')
+  end
+rescue => e
+  # 如果更新失败，忽略错误
 end
 
 unless DB.table_exists?(:deployments)
@@ -158,6 +206,14 @@ end
 post '/projects' do
   login_required
   begin
+    # 根据用户选择的启动方式设置start_script
+    start_script = ''
+    if params[:start_type] == 'script_path'
+      start_script = params[:start_script_path]
+    elsif params[:start_type] == 'custom_command'
+      start_script = params[:custom_start_command]
+    end
+    
     project = Project.create(
       :name => params[:name],
       :repo_type => params[:repo_type],
@@ -167,8 +223,12 @@ post '/projects' do
       :artifact_path => params[:artifact_path],
       :deploy_server => params[:deploy_server],
       :deploy_path => params[:deploy_path],
-      :start_script => params[:start_script],
-      :backup_path => params[:backup_path]
+      :start_script => start_script,
+      :backup_path => params[:backup_path],
+      :start_mode => params[:start_mode],
+      :stop_mode => params[:stop_mode],
+      :docker_compose_file => params[:docker_compose_file],
+      :start_type => params[:start_type]
     )
     flash[:success] = '项目创建成功'
     redirect '/'
@@ -191,6 +251,14 @@ post '/projects/:id' do
   login_required
   project = Project[params[:id]]
   begin
+    # 根据用户选择的启动方式设置start_script
+    start_script = ''
+    if params[:start_type] == 'script_path'
+      start_script = params[:start_script_path]
+    elsif params[:start_type] == 'custom_command'
+      start_script = params[:custom_start_command]
+    end
+    
     project.update(
       :name => params[:name],
       :repo_type => params[:repo_type],
@@ -200,8 +268,12 @@ post '/projects/:id' do
       :artifact_path => params[:artifact_path],
       :deploy_server => params[:deploy_server],
       :deploy_path => params[:deploy_path],
-      :start_script => params[:start_script],
-      :backup_path => params[:backup_path]
+      :start_script => start_script,
+      :backup_path => params[:backup_path],
+      :start_mode => params[:start_mode],
+      :stop_mode => params[:stop_mode],
+      :docker_compose_file => params[:docker_compose_file],
+      :start_type => params[:start_type]
     )
     flash[:success] = '项目更新成功'
     redirect '/'
@@ -375,12 +447,25 @@ post '/projects/:id/deploy' do
         log << "目录上传成功"
       end
       
-      # 执行启动脚本 - Linux路径处理
+      # 执行启动脚本 - 根据启动类型和启动模式执行
       if project.start_script && !project.start_script.empty?
-        log << "执行启动脚本: #{project.start_script}"
-        # 在Linux上执行脚本时需要确保脚本有执行权限
-        result = ssh.exec!(project.start_script)
-        log << "启动脚本执行结果: #{result}"
+        log << "执行启动命令: #{project.start_script}"
+        
+        # 转义命令中的特殊字符
+        escaped_start_script = project.start_script.gsub(/([\s\'\"])/, '\\\\\1')
+        
+        # 根据启动类型和启动模式执行不同的命令
+        if project.start_type == 'script_path' && project.start_mode == 'nohup' && project.start_script.end_with?('.sh')
+          # 使用nohup启动脚本
+          start_command = "nohup #{escaped_start_script} > /dev/null 2>&1 &"
+          log << "使用nohup模式启动服务: #{start_command}"
+          result = ssh.exec!(start_command)
+          log << "nohup启动结果: #{result}"
+        else
+          # 默认直接执行命令
+          result = ssh.exec!(escaped_start_script)
+          log << "启动命令执行结果: #{result}"
+        end
       end
     end
     
@@ -498,13 +583,28 @@ get '/projects/:id/rollback/:backup_file' do
       ssh.exec!("tar -czf #{escaped_pre_rollback_path} -C #{deploy_dirname} #{deploy_basename}")
       log << "回滚前备份: #{pre_rollback_path}"
       
-      # 停止应用（如果有停止脚本）
+      # 停止应用
       if project.start_script && !project.start_script.empty?
-        # 简单处理：如果启动脚本包含start关键字，可以尝试替换为stop
-        stop_script = project.start_script.gsub('start', 'stop')
-        log << "执行停止脚本: #{stop_script}"
-        ssh.exec!(stop_script)
-        log << "应用已停止"
+        log << "根据停止模式停止应用"
+        if project.stop_mode == 'kill_process'
+          # 查找并杀死相关进程
+          if project.start_script.include?('/')
+            script_name = File.basename(project.start_script)
+            kill_command = "pgrep -f #{script_name} | xargs kill -9 2>/dev/null || echo 'No process found'"
+          else
+            kill_command = "pgrep -f #{project.start_script} | xargs kill -9 2>/dev/null || echo 'No process found'"
+          end
+          log << "执行进程杀死命令: #{kill_command}"
+          result = ssh.exec!(kill_command)
+          log << "进程杀死结果: #{result}"
+        else
+          # 使用sh脚本停止
+          # 简单处理：如果启动脚本包含start关键字，可以尝试替换为stop
+          stop_script = project.start_script.gsub('start', 'stop')
+          log << "执行停止脚本: #{stop_script}"
+          result = ssh.exec!(stop_script)
+          log << "应用已停止: #{result}"
+        end
       end
       
       # 解压备份文件到部署目录 - Linux路径处理
@@ -518,12 +618,40 @@ get '/projects/:id/rollback/:backup_file' do
       ssh.exec!("tar -xzf #{escaped_backup_path} -C #{deploy_dirname}")
       log << "备份文件解压成功"
       
-      # 重启应用 - Linux路径处理
+      # 重启应用 - 根据启动类型和启动模式执行
       if project.start_script && !project.start_script.empty?
-        log << "执行启动脚本: #{project.start_script}"
-        # 在Linux上执行脚本时需要确保脚本有执行权限
-        ssh.exec!(project.start_script)
-        log << "应用已重启"
+        log << "执行启动命令: #{project.start_script}"
+        
+        # 转义命令中的特殊字符
+        escaped_start_script = project.start_script.gsub(/([\s\'\"])/, '\\\\\1')
+        
+        # 根据启动类型和启动模式执行不同的命令
+        if project.start_type == 'script_path' && project.start_mode == 'nohup' && project.start_script.end_with?('.sh')
+          # 使用nohup启动脚本
+          start_command = "nohup #{escaped_start_script} > /dev/null 2>&1 &"
+          log << "使用nohup模式启动服务: #{start_command}"
+          result = ssh.exec!(start_command)
+          log << "nohup启动结果: #{result}"
+        else
+          # 默认直接执行命令
+          result = ssh.exec!(escaped_start_script)
+          log << "启动命令执行结果: #{result}"
+        end
+      end
+      
+      # 如果配置了Docker Compose文件，使用docker-compose启动
+      if project.docker_compose_file && !project.docker_compose_file.empty?
+        log << "使用Docker Compose启动服务: #{project.docker_compose_file}"
+        
+        # 转义部署路径中的特殊字符
+        escaped_deploy_path = project.deploy_path.gsub(/([\s\'"])/, '\\\\\\1')
+        docker_compose_file = project.docker_compose_file.gsub(/([\s\'"])/, '\\\\\\1')
+        
+        # 执行docker-compose up命令
+        compose_command = "cd #{escaped_deploy_path} && docker-compose -f #{docker_compose_file} up -d"
+        log << "执行Docker Compose命令: #{compose_command}"
+        result = ssh.exec!(compose_command)
+        log << "Docker Compose启动结果: #{result}"
       end
     end
     
@@ -553,6 +681,141 @@ get '/projects/:id/history/:deployment_id' do
   @deployment = Deployment[params[:deployment_id]]
   @project = @deployment.project
   haml :deployment_detail
+end
+
+# Docker相关操作路由
+get '/projects/:id/docker/start' do
+  login_required
+  project = Project[params[:id]]
+  log = []
+  
+  begin
+    log << "开始启动Docker服务"
+    
+    # 解析服务器信息
+    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\w\.-]+)(?::(\d+))?$/)
+    user = server_info[1] || 'root'
+    host = server_info[2]
+    port = server_info[3] ? server_info[3].to_i : (CONFIG['ssh_default_port'] || 22)
+    
+    # 连接服务器并执行Docker操作
+    Net::SSH.start(host, user, :port => port) do |ssh|
+      # 启动Docker服务
+      result = ssh.exec!("systemctl start docker")
+      log << "Docker服务启动结果: #{result}"
+      
+      # 如果配置了Docker Compose文件，使用docker-compose启动
+      if project.docker_compose_file && !project.docker_compose_file.empty?
+        log << "使用Docker Compose启动应用: #{project.docker_compose_file}"
+        
+        # 转义部署路径中的特殊字符
+        escaped_deploy_path = project.deploy_path.gsub(/([\s\'"])/, '\\\\\\1')
+        docker_compose_file = project.docker_compose_file.gsub(/([\s\'"])/, '\\\\\\1')
+        
+        # 执行docker-compose up命令
+        compose_command = "cd #{escaped_deploy_path} && docker-compose -f #{docker_compose_file} up -d"
+        log << "执行Docker Compose命令: #{compose_command}"
+        result = ssh.exec!(compose_command)
+        log << "Docker Compose启动结果: #{result}"
+      end
+    end
+    
+    flash[:success] = "Docker服务和应用已成功启动"
+  rescue => e
+    log << "Docker启动失败: #{e.message}"
+    log << e.backtrace.join('\n')
+    flash[:error] = "Docker启动失败: #{e.message}"
+  ensure
+    redirect "/projects/#{project.id}/deploy"
+  end
+end
+
+get '/projects/:id/docker/stop' do
+  login_required
+  project = Project[params[:id]]
+  log = []
+  
+  begin
+    log << "开始停止Docker服务"
+    
+    # 解析服务器信息
+    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\w\.-]+)(?::(\d+))?$/)
+    user = server_info[1] || 'root'
+    host = server_info[2]
+    port = server_info[3] ? server_info[3].to_i : (CONFIG['ssh_default_port'] || 22)
+    
+    # 连接服务器并执行Docker操作
+    Net::SSH.start(host, user, :port => port) do |ssh|
+      # 如果配置了Docker Compose文件，使用docker-compose停止
+      if project.docker_compose_file && !project.docker_compose_file.empty?
+        log << "使用Docker Compose停止应用: #{project.docker_compose_file}"
+        
+        # 转义部署路径中的特殊字符
+        escaped_deploy_path = project.deploy_path.gsub(/([\s\'"])/, '\\\\\\1')
+        docker_compose_file = project.docker_compose_file.gsub(/([\s\'"])/, '\\\\\\1')
+        
+        # 执行docker-compose down命令
+        compose_command = "cd #{escaped_deploy_path} && docker-compose -f #{docker_compose_file} down"
+        log << "执行Docker Compose命令: #{compose_command}"
+        result = ssh.exec!(compose_command)
+        log << "Docker Compose停止结果: #{result}"
+      end
+    end
+    
+    flash[:success] = "Docker应用已成功停止"
+  rescue => e
+    log << "Docker停止失败: #{e.message}"
+    log << e.backtrace.join('\n')
+    flash[:error] = "Docker停止失败: #{e.message}"
+  ensure
+    redirect "/projects/#{project.id}/deploy"
+  end
+end
+
+get '/projects/:id/docker/restart' do
+  login_required
+  project = Project[params[:id]]
+  log = []
+  
+  begin
+    log << "开始重启Docker服务"
+    
+    # 解析服务器信息
+    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\w\.-]+)(?::(\d+))?$/)
+    user = server_info[1] || 'root'
+    host = server_info[2]
+    port = server_info[3] ? server_info[3].to_i : (CONFIG['ssh_default_port'] || 22)
+    
+    # 连接服务器并执行Docker操作
+    Net::SSH.start(host, user, :port => port) do |ssh|
+      # 重启Docker服务
+      result = ssh.exec!("systemctl restart docker")
+      log << "Docker服务重启结果: #{result}"
+      
+      # 如果配置了Docker Compose文件，使用docker-compose重启
+      if project.docker_compose_file && !project.docker_compose_file.empty?
+        log << "使用Docker Compose重启应用: #{project.docker_compose_file}"
+        
+        # 转义部署路径中的特殊字符
+        escaped_deploy_path = project.deploy_path.gsub(/([\s\'"])/, '\\\\\\1')
+        docker_compose_file = project.docker_compose_file.gsub(/([\s\'"])/, '\\\\\\1')
+        
+        # 执行docker-compose restart命令
+        compose_command = "cd #{escaped_deploy_path} && docker-compose -f #{docker_compose_file} restart"
+        log << "执行Docker Compose命令: #{compose_command}"
+        result = ssh.exec!(compose_command)
+        log << "Docker Compose重启结果: #{result}"
+      end
+    end
+    
+    flash[:success] = "Docker服务和应用已成功重启"
+  rescue => e
+    log << "Docker重启失败: #{e.message}"
+    log << e.backtrace.join('\n')
+    flash[:error] = "Docker重启失败: #{e.message}"
+  ensure
+    redirect "/projects/#{project.id}/deploy"
+  end
 end
 
 # 创建所需目录 - 跨平台兼容
