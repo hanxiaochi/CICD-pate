@@ -5,7 +5,14 @@ FROM ruby:3.2-slim-bullseye
 WORKDIR /app
 
 # 安装必要的系统依赖
-RUN apt-get update -qq && \n    apt-get install -y --no-install-recommends \n    build-essential \n    git \n    sqlite3 \n    libsqlite3-dev \n    curl \n    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    sqlite3 \
+    libsqlite3-dev \
+    curl && \
+    rm -rf /var/lib/apt/lists/*
 
 # 安装Bundler
 RUN gem install bundler -v 2.4.22
@@ -20,7 +27,8 @@ RUN bundle install --jobs 4 --retry 3
 COPY . .
 
 # 确保public目录存在并有正确权限
-RUN mkdir -p public/images && \n    chmod -R 755 public
+RUN mkdir -p public/images && \
+    chmod -R 755 public
 
 # 暴露端口
 EXPOSE 4567
