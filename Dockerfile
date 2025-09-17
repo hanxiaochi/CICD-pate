@@ -25,7 +25,7 @@ RUN gem install bundler -v 2.4.22
 COPY Gemfile* ./
 
 # 安装Ruby依赖
-RUN bundle install --jobs 4 --retry 3
+RUN bundle install --jobs 4 --retry 3 --verbose
 
 # 复制应用代码
 COPY . .
