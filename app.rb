@@ -1,5 +1,4 @@
 require 'sinatra'
-require 'sinatra/flash'
 require 'haml'
 require 'sequel'
 require 'bcrypt'
@@ -38,11 +37,27 @@ configure do
   set :public_folder, './public'
   enable :sessions
   set :session_secret, 'cicd_tools_secret_key'
-  register Sinatra::Flash
+  
+  # 自定义flash实现
+  helpers do
+    def flash
+      session[:flash] ||= {}
+      session[:flash]
+    end
+    
+    def flash_clear
+      session[:flash] = {}
+    end
+  end
   
   # 确保中文正常显示
   Encoding.default_external = Encoding::UTF_8
   Encoding.default_internal = Encoding::UTF_8
+  
+  # 添加after过滤器清除flash消息
+  after do
+    flash_clear if request.env['PATH_INFO'] != '/'
+  end
 end
 
 # 初始化数据库

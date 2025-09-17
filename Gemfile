@@ -1,7 +1,6 @@
 source 'https://rubygems.org'
 
 gem 'sinatra', '~> 2.1'
-gem 'sinatra-flash', '~> 0.3.0'
 gem 'haml', '~> 5.2'
 gem 'sqlite3', '~> 1.4'
 gem 'sequel', '~> 5.45'
