@@ -1,6 +1,10 @@
 # 使用官方Ruby镜像作为基础
 FROM ruby:3.2-slim-bullseye
 
+# 设置UTF-8编码环境变量
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
 # 设置工作目录
 WORKDIR /app
 
@@ -17,18 +21,18 @@ RUN apt-get update -qq && \
 # 安装Bundler
 RUN gem install bundler -v 2.4.22
 
-# 复制Gemfile
-COPY Gemfile ./
+# 复制Gemfile和Gemfile.lock（如果存在）
+COPY Gemfile* ./
 
-# 安装Ruby依赖（如果没有Gemfile.lock则自动生成）
+# 安装Ruby依赖
 RUN bundle install --jobs 4 --retry 3
 
 # 复制应用代码
 COPY . .
 
-# 确保public目录存在并有正确权限
-RUN mkdir -p public/images && \
-    chmod -R 755 public
+# 确保所需目录存在并有正确权限
+RUN mkdir -p public/images tmp && \
+    chmod -R 755 public tmp
 
 # 暴露端口
 EXPOSE 4567
