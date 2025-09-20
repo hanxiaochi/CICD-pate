@@ -18,11 +18,15 @@ RUN apt-get update -qq && \
     curl && \
     rm -rf /var/lib/apt/lists/*
 
+# 切换到阿里云 RubyGems 镜像源
+RUN gem sources --add https://mirrors.aliyun.com/rubygems/ --remove https://rubygems.org/ && \
+    gem sources -l # 验证镜像源是否切换成功
+
 # 安装Bundler
 RUN gem install bundler -v 2.4.22
 
-# 复制Gemfile
-COPY Gemfile ./
+# 复制Gemfile和Gemfile.lock（如果存在）
+COPY Gemfile Gemfile.lock ./
 
 # 安装Ruby依赖
 RUN bundle install --jobs 4 --retry 3 --verbose
