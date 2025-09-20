@@ -1,4 +1,5 @@
 require 'sinatra'
+require 'sinatra/flash' # 添加此行
 require 'haml'
 require 'sequel'
 require 'bcrypt'
@@ -38,26 +39,9 @@ configure do
   enable :sessions
   set :session_secret, 'cicd_tools_secret_key'
   
-  # 自定义flash实现
-  helpers do
-    def flash
-      session[:flash] ||= {}
-      session[:flash]
-    end
-    
-    def flash_clear
-      session[:flash] = {}
-    end
-  end
-  
   # 确保中文正常显示
   Encoding.default_external = Encoding::UTF_8
   Encoding.default_internal = Encoding::UTF_8
-  
-  # 添加after过滤器清除flash消息
-  after do
-    flash_clear if request.env['PATH_INFO'] != '/'
-  end
 end
 
 # 初始化数据库
@@ -707,7 +691,7 @@ get '/projects/:id/docker/start' do
     log << "开始启动Docker服务"
     
     # 解析服务器信息
-    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\w\.-]+)(?::(\d+))?$/)
+    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\[\w\.-]+)(?::(\d+))?$/)
     user = server_info[1] || 'root'
     host = server_info[2]
     port = server_info[3] ? server_info[3].to_i : (CONFIG['ssh_default_port'] || 22)
@@ -753,7 +737,7 @@ get '/projects/:id/docker/stop' do
     log << "开始停止Docker服务"
     
     # 解析服务器信息
-    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\w\.-]+)(?::(\d+))?$/)
+    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\[\w\.-]+)(?::(\d+))?$/)
     user = server_info[1] || 'root'
     host = server_info[2]
     port = server_info[3] ? server_info[3].to_i : (CONFIG['ssh_default_port'] || 22)
@@ -795,7 +779,7 @@ get '/projects/:id/docker/restart' do
     log << "开始重启Docker服务"
     
     # 解析服务器信息
-    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\w\.-]+)(?::(\d+))?$/)
+    server_info = project.deploy_server.match(/^(?:(\w+)@)?([\[\w\.-]+)(?::(\d+))?$/)
     user = server_info[1] || 'root'
     host = server_info[2]
     port = server_info[3] ? server_info[3].to_i : (CONFIG['ssh_default_port'] || 22)
