@@ -1,5 +1,5 @@
 require 'sinatra'
-require 'sinatra/flash' # 添加此行
+require 'sinatra/flash' # 确保加载 sinatra/flash
 require 'haml'
 require 'sequel'
 require 'bcrypt'
@@ -149,6 +149,7 @@ helpers do
   def login_required
     unless current_user
       session[:redirect_to] = request.path_info
+      flash[:error] = '请先登录'
       redirect '/login'
     end
   end
@@ -191,6 +192,7 @@ end
 
 get '/logout' do
   session.clear
+  flash[:success] = '已成功退出登录'
   redirect '/login'
 end
 

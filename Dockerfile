@@ -22,16 +22,13 @@ RUN apt-get update -qq && \
 RUN gem install bundler -v 2.4.22
 
 # 复制Gemfile和Gemfile.lock（如果存在）
-COPY Gemfile* ./
+COPY Gemfile Gemfile.lock ./
 
 # 安装Ruby依赖
 RUN bundle install --jobs 4 --retry 3 --verbose
 
 # 复制应用代码
 COPY . .
-
-# 在构建过程中直接修改app.rb，删除对sinatra/flash的引用
-RUN sed -i '/require \x27sinatra\/flash\x27/d' app.rb
 
 # 确保所需目录存在并有正确权限
 RUN mkdir -p public/images tmp && \
