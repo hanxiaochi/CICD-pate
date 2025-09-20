@@ -17,11 +17,11 @@ def load_config
   else
     # 默认配置
     {
-      "ssh_default_port": 22,
-      "app_port": 4567,
-      "log_level": "info",
-      "temp_dir": "./tmp",
-      "docker_support": true
+      "ssh_default_port" => 22,
+      "app_port" => 4567,
+      "log_level" => "info",
+      "temp_dir" => "./tmp",
+      "docker_support" => true
     }
   end
 end
@@ -87,17 +87,16 @@ unless DB.table_exists?(:projects)
 end
 
 # 如果表已存在但缺少新字段，添加这些字段
-alter_table_sqls = [
-  "ALTER TABLE projects ADD COLUMN IF NOT EXISTS start_mode TEXT DEFAULT 'default'",
-  "ALTER TABLE projects ADD COLUMN IF NOT EXISTS stop_mode TEXT DEFAULT 'sh_script'",
-  "ALTER TABLE projects ADD COLUMN IF NOT EXISTS docker_compose_file TEXT DEFAULT ''",
-  "ALTER TABLE projects ADD COLUMN IF NOT EXISTS start_type TEXT DEFAULT 'script_path'"
-]
-alter_table_sqls.each do |sql|
-  begin
-    DB.run(sql)
-  rescue => e
-    # 如果字段已存在，忽略错误
+new_columns = {
+  start_mode: "TEXT DEFAULT 'default'",
+  stop_mode: "TEXT DEFAULT 'sh_script'",
+  docker_compose_file: "TEXT DEFAULT ''",
+  start_type: "TEXT DEFAULT 'script_path'"
+}
+
+new_columns.each do |column, definition|
+  unless DB[:projects].columns.include?(column)
+    DB.run("ALTER TABLE projects ADD COLUMN #{column} #{definition}")
   end
 end
 
@@ -107,7 +106,7 @@ begin
     DB[:projects].where(:start_mode => 'sh_script').update(:start_mode => 'default')
   end
 rescue => e
-  # 如果更新失败，忽略错误
+  puts "更新start_mode默认值失败: #{e.message}"
 end
 
 unless DB.table_exists?(:deployments)
@@ -836,5 +835,5 @@ end
 # 创建所需目录 - 跨平台兼容
 required_dirs = ['./views', './public', './tmp']
 required_dirs.each do |dir|
-  Dir.mkdir_p(dir) unless File.directory?(dir)
+  FileUtils.mkdir_p(dir) unless File.directory?(dir)
 end
