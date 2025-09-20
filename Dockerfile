@@ -21,8 +21,8 @@ RUN apt-get update -qq && \
 # 安装Bundler
 RUN gem install bundler -v 2.4.22
 
-# 复制Gemfile和Gemfile.lock（如果存在）
-COPY Gemfile Gemfile.lock ./
+# 复制Gemfile
+COPY Gemfile ./
 
 # 安装Ruby依赖
 RUN bundle install --jobs 4 --retry 3 --verbose
