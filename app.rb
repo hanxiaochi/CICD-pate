@@ -36,6 +36,61 @@ end
 # 初始化数据库
 DB = Sequel.sqlite('cicd.db')
 
+# --- 初始化数据库表 ---
+unless DB.table_exists?(:projects)
+  DB.create_table :projects do
+    primary_key :id
+    String :name, null: false
+    String :repo_type, null: false
+    String :repo_url, null: false
+    String :branch, default: 'master'
+    String :build_script
+    String :artifact_path
+    String :deploy_server
+    String :deploy_path
+    String :start_script
+    String :backup_path
+    String :start_mode, default: 'default'
+    String :stop_mode, default: 'sh_script'
+    Time :created_at, default: Time.now
+    Time :updated_at, default: Time.now
+  end
+end
+
+unless DB.table_exists?(:resources)
+  DB.create_table :resources do
+    primary_key :id
+    String :name, null: false
+    String :ip, null: false
+    String :description
+  end
+end
+
+unless DB.table_exists?(:services)
+  DB.create_table :services do
+    primary_key :id
+    String :name, null: false
+    String :description
+  end
+end
+
+unless DB.table_exists?(:users)
+  DB.create_table :users do
+    primary_key :id
+    String :username, null: false, unique: true
+    String :password_hash, null: false
+    String :role, default: 'user'
+    Time :created_at, default: Time.now
+  end
+
+  # 创建默认管理员用户
+  DB[:users].insert(
+    username: 'admin',
+    password_hash: BCrypt::Password.create('admin123'),
+    role: 'admin'
+  )
+end
+
 # --- 模型定义 ---
 class Project < Sequel::Model(:projects); end
 class Resource < Sequel::Model(:resources); end
