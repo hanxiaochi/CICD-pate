@@ -23,6 +23,36 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# 版本比较函数
+version_compare() {
+    local version1="$1"
+    local version2="$2"
+    
+    # 将版本号拆分为数组
+    IFS='.' read -ra VERSION1 <<< "$version1"
+    IFS='.' read -ra VERSION2 <<< "$version2"
+    
+    # 找到最大長度
+    local max_length=${#VERSION1[@]}
+    if [ ${#VERSION2[@]} -gt $max_length ]; then
+        max_length=${#VERSION2[@]}
+    fi
+    
+    # 逐位比較
+    for ((i=0; i<max_length; i++)); do
+        local v1=${VERSION1[i]:-0}
+        local v2=${VERSION2[i]:-0}
+        
+        if [ $v1 -gt $v2 ]; then
+            return 0  # version1 > version2
+        elif [ $v1 -lt $v2 ]; then
+            return 1  # version1 < version2
+        fi
+    done
+    
+    return 0  # 版本相等，返回0（满足要求）
+}
+
 # 检查Ruby环境
 check_ruby() {
     log_info "检查Ruby环境..."
@@ -31,12 +61,15 @@ check_ruby() {
         log_warn "Ruby未安装，开始自动安装Ruby 3.0+..."
         install_ruby
     else
-        ruby_version=$(ruby -v | cut -d' ' -f2)
+        # 获取Ruby版本号（只取数字部分）
+        ruby_version=$(ruby -v | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
         log_info "Ruby版本: $ruby_version"
         
-        # 检查Ruby版本是否满足要求
-        if ! ruby -e "exit(RUBY_VERSION.split('.').map(&:to_i) <=> [3, 0, 0]) >= 0"; then
-            log_warn "Ruby版本过低，需要3.0+，开始升级..."
+        # 检查Ruby版本是否满足要求（>= 3.0.0）
+        if version_compare "$ruby_version" "3.0.0"; then
+            log_info "Ruby版本满足要求 (>= 3.0): $ruby_version"
+        else
+            log_warn "Ruby版本过低（$ruby_version），需要3.0+，开始升级..."
             install_ruby
         fi
     fi
@@ -148,11 +181,14 @@ install_ruby_opencloudos() {
         sudo yum install -y ruby ruby-devel 2>/dev/null || true
         
         # 检查版本是否满足要求
-        if command -v ruby &>/dev/null && ruby -e "exit(RUBY_VERSION.split('.').map(&:to_i) <=> [3, 0, 0]) >= 0" 2>/dev/null; then
-            log_info "Ruby版本满足要求: $(ruby -v)"
-            return 0
-        else
-            log_warn "yum安装的Ruby版本过低，需要升级"
+        if command -v ruby &>/dev/null; then
+            current_version=$(ruby -v | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            if version_compare "$current_version" "3.0.0"; then
+                log_info "Ruby版本满足要求: $current_version"
+                return 0
+            else
+                log_warn "yum安装的Ruby版本过低（$current_version），需要升级"
+            fi
         fi
     fi
     
