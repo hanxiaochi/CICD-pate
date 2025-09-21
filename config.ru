@@ -6,7 +6,7 @@ require 'fileutils'
 Dir.chdir File.dirname(__FILE__)
 
 # 加载应用程序
-require_relative 'app_refactored'
+require_relative 'app_v2'
 
 # 运行应用
 run CicdApp
