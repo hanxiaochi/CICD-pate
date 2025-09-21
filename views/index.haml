@@ -1,17 +1,22 @@
 !!!
 %html
   %head
-    %title CICD工具
+    %title CICD工具首页
     %link(rel="stylesheet" href="/style.css")
   %body
     %header
-      %h1 CICD自动化部署工具
-      .nav
-        - if current_user
-          %span 当前用户: #{current_user.username}
-          %a(href="/logout") 退出登录
-        - else
-          %a(href="/login") 登录
+      %h1 欢迎使用 CICD 工具
+    %nav
+      %ul
+        %li
+          %a(href="/projects") 项目管理
+        %li
+          %a(href="/resources") 资源管理
+        %li
+          %a(href="/services") 服务管理
+        - if current_user&.role == 'admin'
+          %li
+            %a(href="/admin") 管理员页面
     %main
       - if flash[:success]
         .flash.success= flash[:success]
@@ -47,4 +52,4 @@
                 %a.button.small.secondary(href="/projects/#{project.id}/history") 部署历史
                 %a.button.small.danger(href="/projects/#{project.id}/delete" onclick="return confirm('确定要删除这个项目吗？');") 删除
     %footer
-      %p CICD工具 &copy; #{Time.now.year}
+      %p &copy; #{Time.now.year} CICD工具

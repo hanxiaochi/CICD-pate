@@ -221,6 +221,11 @@ get '/projects/:id/docker/restart' do
   # 处理Docker重启逻辑
 end
 
+get '/' do
+  login_required
+  haml :index
+end
+
 # --- 创建所需目录 ---
 required_dirs = ['./views', './public', './tmp']
 required_dirs.each do |dir|
