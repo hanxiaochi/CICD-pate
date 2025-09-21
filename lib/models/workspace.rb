@@ -1,5 +1,7 @@
 # 工作空间模型
-class Workspace < BaseModel(:workspaces)
+class Workspace < Sequel::Model(:workspaces)
+  plugin :timestamps, update_on_create: true
+  plugin :validation_helpers
   one_to_many :projects
   many_to_one :user, key: :owner_id
 

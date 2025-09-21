@@ -1,5 +1,7 @@
 # 日志模型
-class Log < BaseModel(:logs)
+class Log < Sequel::Model(:logs)
+  plugin :timestamps, update_on_create: true
+  plugin :validation_helpers
   many_to_one :user
   many_to_one :project
 
@@ -70,7 +72,9 @@ class Log < BaseModel(:logs)
 end
 
 # 权限模型
-class Permission < BaseModel(:permissions)
+class Permission < Sequel::Model(:permissions)
+  plugin :timestamps, update_on_create: true
+  plugin :validation_helpers
   many_to_one :user
 
   def validate

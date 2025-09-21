@@ -1,5 +1,6 @@
 # 部署模型
 class Deployment < Sequel::Model
+  plugin :timestamps, update_on_create: true
   many_to_one :project
   many_to_one :user
   many_to_one :build

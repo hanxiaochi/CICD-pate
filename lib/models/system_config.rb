@@ -1,5 +1,7 @@
 # 系统配置模型
-class SystemConfig < BaseModel(:system_configs)
+class SystemConfig < Sequel::Model(:system_configs)
+  plugin :timestamps, update_on_create: true
+  plugin :validation_helpers
   def validate
     super
     validates_presence [:config_key]

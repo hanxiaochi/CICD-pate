@@ -1,5 +1,6 @@
 # 构建模型
 class Build < Sequel::Model
+  plugin :timestamps, update_on_create: true
   many_to_one :project
   many_to_one :user
   

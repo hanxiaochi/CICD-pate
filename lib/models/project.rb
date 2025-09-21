@@ -1,5 +1,7 @@
 # 项目模型
-class Project < BaseModel(:projects)
+class Project < Sequel::Model(:projects)
+  plugin :timestamps, update_on_create: true
+  plugin :validation_helpers
   many_to_one :user
   many_to_one :workspace
   one_to_many :builds

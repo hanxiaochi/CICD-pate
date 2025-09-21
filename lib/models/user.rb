@@ -1,5 +1,7 @@
 # 用户模型
-class User < BaseModel(:users)
+class User < Sequel::Model(:users)
+  plugin :timestamps, update_on_create: true
+  plugin :validation_helpers
   def validate
     super
     validates_presence [:username, :password_hash]

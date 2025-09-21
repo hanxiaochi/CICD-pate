@@ -1,5 +1,7 @@
 # 资源模型
-class Resource < BaseModel(:resources)
+class Resource < Sequel::Model(:resources)
+  plugin :timestamps, update_on_create: true
+  plugin :validation_helpers
   one_to_many :services
 
   def validate

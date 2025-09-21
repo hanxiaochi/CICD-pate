@@ -1,5 +1,6 @@
 # 权限模型
 class Permission < Sequel::Model
+  plugin :timestamps, update_on_create: true
   many_to_one :user
   many_to_one :workspace
   
