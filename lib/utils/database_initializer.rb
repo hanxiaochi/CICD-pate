@@ -19,7 +19,7 @@ class DatabaseInitializer
     # 创建默认数据
     create_default_admin
     create_default_workspace
-    SystemConfig.initialize_default_configs
+    create_default_system_configs
   end
 
   private
@@ -300,6 +300,68 @@ class DatabaseInitializer
           name: 'default',
           description: '默认工作空间',
           owner_id: admin_user[:id]
+        )
+      end
+    end
+  end
+
+  def self.create_default_system_configs
+    # 直接使用数据库操作而不是模型，避免初始化时的依赖问题
+    default_configs = [
+      {
+        config_key: 'app_name',
+        config_value: 'CICD自动化部署系统',
+        config_type: 'string',
+        description: '应用程序名称',
+        is_system: true
+      },
+      {
+        config_key: 'app_version',
+        config_value: '2.0.0',
+        config_type: 'string',
+        description: '应用程序版本',
+        is_system: true
+      },
+      {
+        config_key: 'session_timeout',
+        config_value: '3600',
+        config_type: 'number',
+        description: '会话超时时间（秒）',
+        is_system: false
+      },
+      {
+        config_key: 'max_build_history',
+        config_value: '100',
+        config_type: 'number',
+        description: '最大构建历史记录数',
+        is_system: false
+      },
+      {
+        config_key: 'auto_clean_logs',
+        config_value: 'true',
+        config_type: 'boolean',
+        description: '自动清理日志',
+        is_system: false
+      },
+      {
+        config_key: 'log_retention_days',
+        config_value: '30',
+        config_type: 'number',
+        description: '日志保留天数',
+        is_system: false
+      }
+    ]
+
+    default_configs.each do |config|
+      unless DB[:system_configs].where(config_key: config[:config_key]).count > 0
+        DB[:system_configs].insert(
+          config_key: config[:config_key],
+          config_value: config[:config_value],
+          config_type: config[:config_type],
+          description: config[:description],
+          is_system: config[:is_system],
+          created_at: Time.now,
+          updated_at: Time.now
         )
       end
     end

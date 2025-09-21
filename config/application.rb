@@ -71,6 +71,17 @@ require_relative '../lib/plugins/git_plugin'
 
 puts "✓ 所有组件加载完成"
 
+# 立即初始化数据库表结构
+puts "正在初始化数据库表结构..."
+begin
+  DatabaseInitializer.create_tables
+  puts "✓ 数据库表初始化完成"
+rescue => e
+  puts "✗ 数据库表初始化失败: #{e.message}"
+  puts "错误位置: #{e.backtrace.first(3).join('\n')}"
+  # 数据库初始化失败不应该导致应用退出，继续运行
+end
+
 # 应用程序配置类
 class ApplicationConfig
   def self.load_config
