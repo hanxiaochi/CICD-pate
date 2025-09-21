@@ -1,5 +1,26 @@
 # CICD系统 - 云服务器快速测试指南
 
+## 🎯 重要更新说明
+
+**✨ 系统现在提供两种模式：**
+
+### 🚀 完整版模式（默认）
+包含全部CICD功能：
+- 📂 工作空间管理
+- 📁 项目管理  
+- 💻 资产管理
+- 👥 用户管理
+- 📊 系统监控
+- 🔌 完整API
+
+### ⚡ 简化版模式
+仅基础功能，启动快：
+- 🔐 用户登录
+- 📊 基础状态
+- 🔌 基础API
+
+**如果您登录后只看到基础仪表板，说明当前运行的是简化版。请按照下面的切换指南切换到完整版！**
+
 ## 🚀 一键操作脚本
 
 ### 核心脚本说明
@@ -11,7 +32,30 @@
 | `cloud_verify.sh` | 一键验证测试 | 功能测试、状态检查 |
 | `cloud_test_workflow.sh` | 完整测试流程 | 自动化测试、批量操作 |
 
-## 🔧 快速使用方法
+## 🔄 模式切换（重要！）
+
+如果您在登录后只看到基础仪表板，没有工作空间、项目管理等功能，请切换到完整版：
+
+### 快速切换到完整版
+```bash
+# 下载并运行模式切换脚本
+curl -fsSL https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate/raw/master/switch_mode.sh -o switch_mode.sh
+chmod +x switch_mode.sh
+./switch_mode.sh
+# 选择选项 1 切换到完整版
+```
+
+### 手动切换到完整版
+```bash
+# 停止当前容器
+docker-compose down
+
+# 设置完整版模式
+export CICD_MODE=full
+
+# 启动完整版
+docker-compose up --build -d
+```
 
 ### 方式1：直接下载执行（推荐）
 ```bash

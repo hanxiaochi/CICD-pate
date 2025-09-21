@@ -41,5 +41,7 @@ RUN mkdir -p public/images tmp && \
 # 暴露端口
 EXPOSE 4567
 
-# 设置启动命令 - 使用绝对可靠的Docker启动脚本
-CMD ["ruby", "start_docker.rb"]
+# 设置启动命令 - 默认使用完整版CICD系统
+# 环境变量CICD_MODE可选值: full(完整版), simple(简化版)
+ENV CICD_MODE=full
+CMD ["sh", "-c", "if [ \"$CICD_MODE\" = \"simple\" ]; then ruby start_docker.rb; else ruby start_full_docker.rb; fi"]

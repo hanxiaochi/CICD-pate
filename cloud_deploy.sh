@@ -163,6 +163,10 @@ start_service() {
     
     cd "$DEPLOY_DIR"
     
+    # 设置完整版模式
+    log_info "设置为完整版CICD系统..."
+    export CICD_MODE=full
+    
     # 停止现有容器
     sudo docker-compose down 2>/dev/null || true
     
