@@ -20,6 +20,7 @@ chmod +x start_refactored.sh
 
 - **Ubuntu/Debian**: 使用apt-get自动安装Ruby 3.2
 - **CentOS/RHEL**: 使用yum安装Ruby 3.2
+- **腾讯云OpenCloudOS**: 特别优化支持，自动安装依赖后使用RVM
 - **Fedora**: 使用dnf安装Ruby
 - **openSUSE**: 使用zypper安装Ruby
 - **macOS**: 使用Homebrew安装Ruby 3.2
@@ -54,6 +55,14 @@ sudo apt-get install -y ruby3.2 ruby3.2-dev build-essential
 # CentOS/RHEL  
 sudo yum install -y centos-release-scl
 sudo yum install -y rh-ruby32 rh-ruby32-ruby-devel gcc gcc-c++ make
+
+# 腾讯云OpenCloudOS特别处理
+# 系统会自动检测并安装基本依赖，然后使用RVM安装Ruby 3.2
+sudo yum install -y gcc gcc-c++ make openssl-devel libffi-devel
+curl -sSL https://get.rvm.io | bash -s stable
+source ~/.rvm/scripts/rvm
+rvm install 3.2.0
+rvm use 3.2.0 --default
 
 # Fedora
 sudo dnf install -y ruby ruby-devel gcc gcc-c++ make

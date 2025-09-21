@@ -50,8 +50,9 @@ chmod +x start_refactored.sh
 
 > ✨ **自动化安装特性**：
 > - 自动检测并安装Ruby 3.0+
-> - 自动配置国内RubyGems镜像源（清华大学）
+> - 自动配置国内RubyGems镜像源（Ruby中国/清华大学）
 > - 支持Ubuntu/Debian/CentOS/Fedora/macOS等多平台
+> - **特别支持腾讯云OpenCloudOS系统**
 > - Windows用户会获得自动下载链接
 
 ### 启动系统

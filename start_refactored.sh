@@ -76,34 +76,89 @@ install_ruby_linux() {
     if command -v apt-get &> /dev/null; then
         # Ubuntu/Debian
         log_info "检测到Ubuntu/Debian系统"
-        sudo apt-get update
-        sudo apt-get install -y software-properties-common
-        sudo apt-add-repository -y ppa:brightbox/ruby-ng
-        sudo apt-get update
-        sudo apt-get install -y ruby3.2 ruby3.2-dev build-essential
+        install_ruby_debian
         
     elif command -v yum &> /dev/null; then
-        # CentOS/RHEL
-        log_info "检测到CentOS/RHEL系统"
-        sudo yum install -y centos-release-scl
-        sudo yum install -y rh-ruby32 rh-ruby32-ruby-devel gcc gcc-c++ make
-        echo 'source /opt/rh/rh-ruby32/enable' >> ~/.bashrc
-        source /opt/rh/rh-ruby32/enable
+        # CentOS/RHEL/OpenCloudOS(腾讯云)
+        if grep -q "OpenCloudOS" /etc/os-release 2>/dev/null; then
+            log_info "检测到腾讯云OpenCloudOS系统"
+            install_ruby_opencloudos
+        else
+            log_info "检测到CentOS/RHEL系统"
+            install_ruby_centos
+        fi
         
     elif command -v dnf &> /dev/null; then
         # Fedora
         log_info "检测到Fedora系统"
-        sudo dnf install -y ruby ruby-devel gcc gcc-c++ make
+        install_ruby_fedora
         
     elif command -v zypper &> /dev/null; then
         # openSUSE
         log_info "检测到openSUSE系统"
-        sudo zypper install -y ruby ruby-devel gcc gcc-c++ make
+        install_ruby_opensuse
         
     else
         log_warn "未检测到支持的包管理器，尝试使用RVM安装..."
         install_ruby_with_rvm
     fi
+}
+
+# Ubuntu/Debian安装
+install_ruby_debian() {
+    sudo apt-get update
+    sudo apt-get install -y software-properties-common
+    sudo apt-add-repository -y ppa:brightbox/ruby-ng
+    sudo apt-get update
+    sudo apt-get install -y ruby3.2 ruby3.2-dev build-essential
+}
+
+# CentOS/RHEL安装
+install_ruby_centos() {
+    sudo yum install -y centos-release-scl
+    sudo yum install -y rh-ruby32 rh-ruby32-ruby-devel gcc gcc-c++ make
+    echo 'source /opt/rh/rh-ruby32/enable' >> ~/.bashrc
+    source /opt/rh/rh-ruby32/enable
+}
+
+# 腾讯云OpenCloudOS安装
+install_ruby_opencloudos() {
+    log_info "为腾讯云OpenCloudOS系统安装Ruby..."
+    
+    # 先尝试安装基本工具
+    sudo yum install -y gcc gcc-c++ make openssl-devel libffi-devel readline-devel zlib-devel
+    
+    # 尝试安装EPEL源
+    if ! yum list epel-release &>/dev/null; then
+        log_info "安装EPEL源..."
+        sudo yum install -y epel-release
+    fi
+    
+    # 尝试直接安装ruby
+    if yum list ruby &>/dev/null; then
+        log_info "使用yum安装Ruby..."
+        sudo yum install -y ruby ruby-devel
+        
+        # 检查版本是否满足要求
+        if ruby -e "exit(RUBY_VERSION.split('.').map(&:to_i) <=> [3, 0, 0]) >= 0" 2>/dev/null; then
+            log_info "Ruby版本满足要求"
+            return 0
+        fi
+    fi
+    
+    # 如果上面都失败，使用RVM安装
+    log_warn "yum安装失败或版本过低，使用RVM安装Ruby 3.2..."
+    install_ruby_with_rvm
+}
+
+# Fedora安装
+install_ruby_fedora() {
+    sudo dnf install -y ruby ruby-devel gcc gcc-c++ make
+}
+
+# openSUSE安装
+install_ruby_opensuse() {
+    sudo zypper install -y ruby ruby-devel gcc gcc-c++ make
 }
 
 # macOS系统安装Ruby
@@ -137,37 +192,89 @@ install_ruby_windows() {
 install_ruby_with_rvm() {
     log_info "使用RVM安装Ruby..."
     
+    # 安装必需的依赖
+    if command -v yum &> /dev/null; then
+        log_info "安装编译依赖..."
+        sudo yum groupinstall -y "Development Tools"
+        sudo yum install -y openssl-devel libffi-devel readline-devel zlib-devel libyaml-devel sqlite-devel
+    elif command -v apt-get &> /dev/null; then
+        sudo apt-get update
+        sudo apt-get install -y curl gpg build-essential libssl-dev libffi-dev libreadline-dev zlib1g-dev
+    fi
+    
     # 安装RVM
     if ! command -v rvm &> /dev/null; then
-        log_info "安装RVM..."
-        \curl -sSL https://get.rvm.io | bash -s stable
-        source ~/.rvm/scripts/rvm
+        log_info "下载并安装RVM..."
+        
+        # 导入GPG密钥
+        log_info "导入RVM GPG密钥..."
+        curl -sSL https://rvm.io/mpapis.asc | gpg --import - || true
+        curl -sSL https://rvm.io/pkuczynski.asc | gpg --import - || true
+        
+        # 安装RVM
+        log_info "下载RVM安装脚本..."
+        curl -sSL https://get.rvm.io | bash -s stable
+        
+        # 加载RVM环境
+        if [ -f ~/.rvm/scripts/rvm ]; then
+            source ~/.rvm/scripts/rvm
+        elif [ -f /usr/local/rvm/scripts/rvm ]; then
+            source /usr/local/rvm/scripts/rvm
+        fi
+        
+        # 更新RVM
+        rvm get stable
     fi
     
     # 使用RVM安装Ruby
     log_info "使用RVM安装Ruby 3.2.0..."
+    
+    # 设置RVM镜像源(中国镜像)
+    echo "ruby_url=https://cache.ruby-china.com/pub/ruby" > ~/.rvm/user/db
+    
+    # 安装Ruby
     rvm install 3.2.0
     rvm use 3.2.0 --default
+    
+    # 验证安装
+    if ruby --version | grep -q "3.2"; then
+        log_info "Ruby 3.2.0安装成功"
+    else
+        log_error "Ruby安装失败"
+        return 1
+    fi
 }
 
 # 配置Ruby国内镜像源
 configure_ruby_mirrors() {
     log_info "配置Ruby国内镜像源..."
     
-    # 配置RubyGems镜像源（使用清华大学镜像）
+    # 配置RubyGems镜像源（优先使用Ruby中国，备用清华大学）
     if gem sources | grep -q "https://rubygems.org/"; then
-        log_info "移除官方源并添加清华大学镜像源..."
+        log_info "移除官方源并添加国内镜像源..."
         gem sources --remove https://rubygems.org/
-        gem sources --add https://mirrors.tuna.tsinghua.edu.cn/rubygems/
+        
+        # 尝试Ruby中国镜像
+        if curl -s --connect-timeout 5 https://gems.ruby-china.com/ > /dev/null; then
+            log_info "使用Ruby中国镜像源..."
+            gem sources --add https://gems.ruby-china.com/
+            bundle config mirror.https://rubygems.org https://gems.ruby-china.com
+        else
+            log_info "使用清华大学镜像源..."
+            gem sources --add https://mirrors.tuna.tsinghua.edu.cn/rubygems/
+            bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
+        fi
     fi
-    
-    # 配置Bundler镜像源
-    log_info "配置Bundler镜像源..."
-    bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
     
     # 显示当前镜像源
     log_info "当前RubyGems镜像源:"
     gem sources -l
+    
+    # 设置国内NPM镜像（如果需要）
+    if command -v npm &> /dev/null; then
+        log_info "配置NPM国内镜像源..."
+        npm config set registry https://registry.npmmirror.com
+    fi
 }
 
 # 安装依赖
