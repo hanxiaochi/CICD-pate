@@ -31,7 +31,11 @@ class ApplicationConfig
   end
 
   def self.initialize_database
-    DB = Sequel.sqlite('cicd.db')
+    # 使用局部变量避免动态常量分配问题
+    database = Sequel.sqlite('cicd.db')
+    
+    # 将数据库实例设置为全局常量
+    Object.const_set('DB', database) unless defined?(DB)
     
     # 初始化所有数据表
     DatabaseInitializer.create_tables
