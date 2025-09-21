@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CICD登录测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        .info {
+            background-color: #e3f2fd;
+            border: 1px solid #2196f3;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .error {
+            background-color: #ffebee;
+            border: 1px solid #f44336;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            color: #d32f2f;
+        }
+        .success {
+            background-color: #e8f5e8;
+            border: 1px solid #4caf50;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>🔐 CICD系统登录</h1>
+        
+        <div class="error">
+            <strong>⚠️ 服务器未运行</strong><br>
+            请先启动CICD服务器才能进行登录测试。
+        </div>
+
+        <div class="info">
+            <strong>📋 启动说明：</strong><br>
+            <strong>方法1 - Docker方式（推荐）：</strong><br>
+            1. 启动Docker Desktop<br>
+            2. 在项目目录运行：<br>
+            &nbsp;&nbsp;<code>docker-compose up --build</code><br><br>
+            
+            <strong>方法2 - 直接运行：</strong><br>
+            1. 确保Ruby已安装<br>
+            2. 运行：<code>ruby start_docker.rb</code><br><br>
+            
+            <strong>默认登录账户：</strong><br>
+            用户名：<strong>admin</strong><br>
+            密码：<strong>admin123</strong>
+        </div>
+
+        <form action="http://localhost:4567/login" method="post">
+            <div class="form-group">
+                <label for="username">用户名：</label>
+                <input type="text" id="username" name="username" value="admin" required>
+            </div>
+            <div class="form-group">
+                <label for="password">密码：</label>
+                <input type="password" id="password" name="password" value="admin123" required>
+            </div>
+            <input type="submit" value="登录">
+        </form>
+
+        <div class="info" style="margin-top: 20px;">
+            <strong>🔍 验证步骤：</strong><br>
+            1. 启动服务器后访问 <a href="http://localhost:4567" target="_blank">http://localhost:4567</a><br>
+            2. 使用默认账户登录<br>
+            3. 登录成功后会看到系统仪表板<br>
+            4. 可以测试API端点功能
+        </div>
+    </div>
+
+    <script>
+        // 检查服务器是否运行
+        function checkServer() {
+            fetch('http://localhost:4567/')
+                .then(response => {
+                    if (response.ok) {
+                        document.querySelector('.error').style.display = 'none';
+                        const successDiv = document.createElement('div');
+                        successDiv.className = 'success';
+                        successDiv.innerHTML = '<strong>✅ 服务器正在运行</strong><br>可以进行登录测试了！';
+                        document.querySelector('.login-container').insertBefore(successDiv, document.querySelector('form'));
+                    }
+                })
+                .catch(error => {
+                    console.log('服务器未运行:', error);
+                });
+        }
+
+        // 页面加载时检查服务器状态
+        window.onload = function() {
+            checkServer();
+            // 每5秒检查一次服务器状态
+            setInterval(checkServer, 5000);
+        };
+    </script>
+</body>
+</html>
