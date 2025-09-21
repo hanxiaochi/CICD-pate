@@ -507,11 +507,155 @@ configure_ruby_mirrors() {
 install_dependencies() {
     log_info "安装依赖包..."
     
+    # 确保Ruby开发环境完整
+    ensure_ruby_dev_environment
+    
     if [ -f Gemfile ]; then
-        bundle install
+        # 设置bundler超时和重试
+        export BUNDLE_TIMEOUT=300
+        export BUNDLE_RETRY=3
+        
+        log_info "使用bundle安装Ruby gems..."
+        bundle install || {
+            log_warn "bundle install失败，尝试修复..."
+            fix_gem_installation
+        }
     else
         log_error "Gemfile不存在"
         exit 1
+    fi
+}
+
+# 确保Ruby开发环境完整
+ensure_ruby_dev_environment() {
+    log_info "检查并完善Ruby开发环境..."
+    
+    # 检查是否有Ruby头文件
+    if ! find /usr/include /usr/local/include /opt -name "ruby.h" 2>/dev/null | head -1 | grep -q "ruby.h"; then
+        log_warn "检测到缺少Ruby开发头文件，正在安装..."
+        install_ruby_dev_packages
+    fi
+    
+    # 检查关键的开发工具
+    local missing_tools=()
+    
+    if ! command -v gcc &>/dev/null; then
+        missing_tools+=("gcc")
+    fi
+    
+    if ! command -v make &>/dev/null; then
+        missing_tools+=("make")
+    fi
+    
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        log_warn "缺少构建工具: ${missing_tools[*]}，正在安装..."
+        install_build_tools "${missing_tools[@]}"
+    fi
+}
+
+# 安装Ruby开发包
+install_ruby_dev_packages() {
+    if command -v yum &>/dev/null; then
+        # RedHat系列（CentOS/RHEL/OpenCloudOS）
+        log_info "为RHEL系列系统安装Ruby开发包..."
+        
+        # 首先尝试安装ruby-devel
+        sudo yum install -y ruby-devel 2>/dev/null || {
+            log_warn "ruby-devel安装失败，尝试其他方法..."
+            
+            # 如果是通过源码编译安装的Ruby，可能需要重新编译
+            if [ -d "/usr/local/ruby" ]; then
+                log_info "检测到自定义Ruby安装，确保开发环境..."
+                ensure_custom_ruby_dev
+            else
+                # 尝试安装基本开发包
+                sudo yum groupinstall -y "Development Tools" 2>/dev/null || true
+                sudo yum install -y gcc gcc-c++ make patch
+                sudo yum install -y openssl-devel libffi-devel readline-devel zlib-devel
+            fi
+        }
+        
+    elif command -v apt-get &>/dev/null; then
+        # Debian系列（Ubuntu/Debian）
+        log_info "为Debian系列系统安装Ruby开发包..."
+        sudo apt-get update
+        sudo apt-get install -y ruby-dev build-essential
+        
+    elif command -v dnf &>/dev/null; then
+        # Fedora
+        log_info "为Fedora系统安装Ruby开发包..."
+        sudo dnf install -y ruby-devel gcc gcc-c++ make
+        
+    else
+        log_warn "未识别的包管理器，请手动安装Ruby开发包"
+    fi
+}
+
+# 确保自定义Ruby安装的开发环境
+ensure_custom_ruby_dev() {
+    log_info "配置自定义Ruby安装的开发环境..."
+    
+    # 检查Ruby配置
+    if command -v ruby &>/dev/null; then
+        ruby_config=$(ruby -e "puts RbConfig::CONFIG['prefix']" 2>/dev/null || echo "/usr/local/ruby")
+        log_info "Ruby安装路径: $ruby_config"
+        
+        # 确保头文件路径正确
+        if [ -d "$ruby_config/include" ]; then
+            export C_INCLUDE_PATH="$ruby_config/include:$C_INCLUDE_PATH"
+            export CPLUS_INCLUDE_PATH="$ruby_config/include:$CPLUS_INCLUDE_PATH"
+            log_info "设置Ruby头文件路径: $ruby_config/include"
+        fi
+    fi
+}
+
+# 修复gem安装问题
+fix_gem_installation() {
+    log_info "尝试修复gem安装问题..."
+    
+    # 清理gem缓存
+    gem cleanup 2>/dev/null || true
+    
+    # 更新RubyGems
+    log_info "更新RubyGems..."
+    gem update --system --no-document 2>/dev/null || true
+    
+    # 重新安装bundler
+    log_info "重新安装bundler..."
+    gem uninstall bundler -a -x 2>/dev/null || true
+    gem install bundler --no-document
+    
+    # 清理bundle缓存
+    bundle clean --force 2>/dev/null || true
+    
+    # 重新尝试安装
+    log_info "重新尝试bundle install..."
+    bundle install --retry=3 --jobs=1 || {
+        log_error "gem安装仍然失败，请检查系统环境"
+        log_error "可能需要手动安装: sudo yum install ruby-devel gcc make"
+        return 1
+    }
+}
+
+# 安装构建工具
+install_build_tools() {
+    local tools=("$@")
+    
+    if command -v yum &>/dev/null; then
+        for tool in "${tools[@]}"; do
+            log_info "安装 $tool..."
+            sudo yum install -y "$tool" 2>/dev/null || {
+                log_warn "$tool 安装失败"
+            }
+        done
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get update
+        for tool in "${tools[@]}"; do
+            log_info "安装 $tool..."
+            sudo apt-get install -y "$tool" 2>/dev/null || {
+                log_warn "$tool 安装失败"
+            }
+        done
     fi
 }
 
@@ -653,6 +797,7 @@ show_help() {
     echo "  status          显示应用状态"
     echo "  install         安装依赖和初始化（自动安装Ruby 3.0+）"
     echo "  simple-install  简化安装模式（适用于网络环境差的情况）"
+    echo "  fix-gems        修复Gem编译问题（解决native extension错误）"
     echo "  help            显示帮助信息"
     echo ""
     echo "环境变量:"
@@ -672,6 +817,7 @@ show_help() {
     echo "示例:"
     echo "  $0 install              # 安装依赖（包括Ruby）"
     echo "  $0 simple-install       # 简化安装（网络环境差）"
+    echo "  $0 fix-gems             # 修复Gem编译问题"
     echo "  $0 start development    # 开发模式启动"
     echo "  $0 start production     # 生产模式启动"
     echo "  $0 restart production  # 重启到生产模式"
@@ -684,6 +830,16 @@ install_system() {
     log_info "开始安装CICD系统..."
     
     check_ruby
+    
+    # 检查并修复Gem编译环境
+    if [ -f "fix_gem_build.sh" ]; then
+        log_info "运行Gem编译环境检查..."
+        chmod +x fix_gem_build.sh
+        ./fix_gem_build.sh deps 2>/dev/null || {
+            log_warn "Gem环境检查完成，继续安装..."
+        }
+    fi
+    
     install_dependencies
     create_directories
     init_database
@@ -724,6 +880,16 @@ main() {
             create_directories
             init_database
             log_info "简化安装完成！"
+            ;;
+        fix-gems)
+            log_info "修复Gem编译问题..."
+            if [ -f "fix_gem_build.sh" ]; then
+                chmod +x fix_gem_build.sh
+                ./fix_gem_build.sh
+            else
+                log_error "fix_gem_build.sh 文件不存在"
+                exit 1
+            fi
             ;;
         help|--help|-h)
             show_help
