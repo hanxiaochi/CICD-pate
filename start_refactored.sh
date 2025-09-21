@@ -714,14 +714,32 @@ check_ports() {
 start_app() {
     log_info "启动CICD系统..."
     
+    # 确保在正确的工作目录
+    if [ ! -f "app_refactored.rb" ]; then
+        log_error "未找到app_refactored.rb文件，请检查工作目录"
+        log_error "当前目录: $(pwd)"
+        exit 1
+    fi
+    
     if [ "$1" = "development" ]; then
         log_info "开发模式启动"
+        export RACK_ENV=development
         bundle exec ruby app_refactored.rb
     elif [ "$1" = "production" ]; then
         log_info "生产模式启动"
-        bundle exec puma -C puma.rb app_refactored.rb
+        export RACK_ENV=production
+        
+        # 检查puma.rb配置文件
+        if [ ! -f "puma.rb" ]; then
+            log_error "未找到puma.rb配置文件"
+            exit 1
+        fi
+        
+        # 使用puma启动（正确的命令格式）
+        bundle exec puma -C puma.rb
     else
-        log_info "默认模式启动"
+        log_info "默认模式启动（开发模式）"
+        export RACK_ENV=development
         bundle exec ruby app_refactored.rb
     fi
 }
