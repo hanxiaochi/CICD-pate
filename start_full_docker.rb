@@ -37,9 +37,135 @@ if missing_gems.any?
   end
 end
 
-# 确保数据库目录存在
-db_dir = File.dirname('/app/cicd.db')
-Dir.mkdir(db_dir) unless Dir.exist?(db_dir)
+# 强制数据库初始化
+始非跨界字符 = false
+begin
+  puts "🗄️  强制初始化数据库..."
+  
+  # 删除现有数据库文件（如果存在）
+  if File.exist?('/app/cicd.db')
+    File.delete('/app/cicd.db')
+    puts "⚙️  已删除旧数据库文件"
+  end
+  
+  # 要求必要的gem
+  require 'sequel'
+  require 'sqlite3'
+  require 'bcrypt'
+  
+  # 创建数据库连接
+  DB = Sequel.connect('sqlite:///app/cicd.db')
+  
+  puts "⚙️  创建数据库表..."
+  
+  # 创建 users 表
+  DB.create_table :users do
+    primary_key :id
+    String :username, null: false, unique: true
+    String :password_hash, null: false
+    String :role, default: 'user'
+    String :email
+    Boolean :active, default: true
+    Time :last_login
+    Time :created_at, default: Time.now
+    Time :updated_at, default: Time.now
+  end
+  
+  # 创建 workspaces 表
+  DB.create_table :workspaces do
+    primary_key :id
+    String :name, null: false
+    String :description
+    Integer :owner_id
+    Time :created_at, default: Time.now
+    Time :updated_at, default: Time.now
+  end
+  
+  # 创建 projects 表
+  DB.create_table :projects do
+    primary_key :id
+    String :name, null: false
+    String :repo_url
+    String :branch, default: 'master'
+    Integer :user_id
+    Integer :workspace_id
+    Time :created_at, default: Time.now
+    Time :updated_at, default: Time.now
+  end
+  
+  # 创建 builds 表
+  DB.create_table :builds do
+    primary_key :id
+    Integer :project_id
+    String :status, default: 'pending'
+    String :commit_hash
+    Text :log_output
+    Time :started_at
+    Time :finished_at
+    Time :created_at, default: Time.now
+  end
+  
+  # 创建 resources 表
+  DB.create_table :resources do
+    primary_key :id
+    String :name, null: false
+    String :type, null: false
+    String :status, default: 'offline'
+    String :host
+    Integer :port
+    Text :config
+    Time :created_at, default: Time.now
+    Time :updated_at, default: Time.now
+  end
+  
+  # 创建 logs 表
+  DB.create_table :logs do
+    primary_key :id
+    String :level, default: 'info'
+    String :message
+    Integer :user_id
+    String :ip_address
+    Time :created_at, default: Time.now
+  end
+  
+  # 创建管理员用户
+  DB[:users].insert(
+    username: 'admin',
+    password_hash: BCrypt::Password.create('admin123'),
+    role: 'admin',
+    email: 'admin@cicd.local',
+    created_at: Time.now,
+    updated_at: Time.now
+  )
+  
+  # 创建默认工作空间
+  workspace_id = DB[:workspaces].insert(
+    name: '默认工作空间',
+    description: '系统默认的工作空间',
+    owner_id: 1,
+    created_at: Time.now,
+    updated_at: Time.now
+  )
+  
+  # 创建示例项目
+  DB[:projects].insert(
+    name: '示例项目',
+    repo_url: 'https://github.com/example/demo.git',
+    branch: 'main',
+    user_id: 1,
+    workspace_id: workspace_id,
+    created_at: Time.now,
+    updated_at: Time.now
+  )
+  
+  puts "✅ 数据库初始化完成！"
+  puts "✅ 已创建管理员账户: admin / admin123"
+  puts "✅ 已创建默认工作空间和示例项目"
+  
+rescue => e
+  puts "❌ 数据库初始化失败: #{e.message}"
+  puts "详细错误: #{e.backtrace.first(3).join('\n')}"
+end
 
 puts "✅ 环境检查完成，启动完整版CICD系统..."
 
