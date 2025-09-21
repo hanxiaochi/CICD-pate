@@ -16,7 +16,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # 配置参数
-REPO_URL="https://github.com/hanxiaochi/CICD-pate.git"
+REPO_URL="https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate.git"
 DEPLOY_DIR="$HOME/CICD-pate"
 CLEANUP_SCRIPT="cloud_cleanup.sh"
 DEPLOY_SCRIPT="cloud_deploy.sh"

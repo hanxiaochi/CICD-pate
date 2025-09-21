@@ -54,7 +54,7 @@ docker-compose --version
 ### 3. 克隆项目代码
 ```bash
 # 克隆项目
-git clone https://github.com/hanxiaochi/CICD-pate.git
+git clone https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate.git
 cd CICD-pate
 
 # 检查最新代码

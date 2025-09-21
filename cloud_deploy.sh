@@ -150,7 +150,7 @@ clone_project() {
         git pull origin master
     else
         log_info "克隆新项目..."
-        git clone https://github.com/hanxiaochi/CICD-pate.git "$DEPLOY_DIR"
+        git clone https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate.git "$DEPLOY_DIR"
         cd "$DEPLOY_DIR"
     fi
     

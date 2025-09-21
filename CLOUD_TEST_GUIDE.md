@@ -16,19 +16,19 @@
 ### 方式1：直接下载执行（推荐）
 ```bash
 # 一键清理
-curl -fsSL https://raw.githubusercontent.com/hanxiaochi/CICD-pate/master/cloud_cleanup.sh | bash
+curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_cleanup.sh | bash
 
 # 一键部署  
-curl -fsSL https://raw.githubusercontent.com/hanxiaochi/CICD-pate/master/cloud_deploy.sh | bash
+curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_deploy.sh | bash
 
 # 一键验证
-curl -fsSL https://raw.githubusercontent.com/hanxiaochi/CICD-pate/master/cloud_verify.sh | bash
+curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_verify.sh | bash
 ```
 
 ### 方式2：克隆后使用
 ```bash
 # 克隆项目
-git clone https://github.com/hanxiaochi/CICD-pate.git
+git clone https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate.git
 cd CICD-pate
 
 # 给脚本执行权限
@@ -226,7 +226,7 @@ tail -f /var/log/messages
 export DOCKER_REGISTRY_MIRROR="https://registry.docker-cn.com"
 
 # 并行下载
-git clone --depth 1 https://github.com/hanxiaochi/CICD-pate.git
+git clone --depth 1 https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate.git
 ```
 
 ## 🎉 成功验证标志
@@ -243,5 +243,5 @@ git clone --depth 1 https://github.com/hanxiaochi/CICD-pate.git
 **快速开始命令：**
 ```bash
 # 一步完成所有操作
-curl -fsSL https://raw.githubusercontent.com/hanxiaochi/CICD-pate/master/cloud_test_workflow.sh | bash -s full
+curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_test_workflow.sh | bash -s full
 ```
