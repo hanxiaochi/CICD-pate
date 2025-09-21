@@ -125,19 +125,21 @@ install_ruby_centos() {
 install_ruby_opencloudos() {
     log_info "为腾讯云OpenCloudOS系统安装Ruby..."
     
-    # 配置OpenCloudOS镜像源
-    configure_opencloudos_mirrors
-    
-    # 安装基本开发工具
+    # 首先尝试安装基本开发工具（不依赖镜像源）
     log_info "安装基本开发工具..."
-    sudo yum install -y gcc gcc-c++ make patch
-    sudo yum install -y openssl-devel libffi-devel readline-devel zlib-devel
-    sudo yum install -y libyaml-devel sqlite-devel
+    if ! install_basic_dev_tools_opencloudos; then
+        log_error "基本开发工具安装失败，尝试简化安装模式"
+        simple_install_ruby_opencloudos
+        return $?
+    fi
+    
+    # 尝试配置镜像源（可选，失败不影响后续流程）
+    configure_opencloudos_mirrors
     
     # 尝试安装EPEL源（如果失败不中断）
     log_info "尝试配置EPEL源..."
     sudo yum install -y epel-release 2>/dev/null || {
-        log_warn "EPEL源安装失败，继续使用官方源"
+        log_warn "EPEL源安装失败，直接使用RVM安装Ruby"
     }
     
     # 尝试直接安装ruby（通常版本较低）
@@ -156,7 +158,75 @@ install_ruby_opencloudos() {
     
     # 使用RVM安装最新版本
     log_info "使用RVM安装Ruby 3.2..."
-    install_ruby_with_rvm
+    if ! install_ruby_with_rvm; then
+        log_warn "RVM安装失败，尝试简化安装模式"
+        simple_install_ruby_opencloudos
+    fi
+}
+
+# 安装OpenCloudOS基本开发工具
+install_basic_dev_tools_opencloudos() {
+    log_info "安装OpenCloudOS基本开发环境..."
+    
+    # 更新包管理器缓存
+    sudo yum clean all &>/dev/null || true
+    
+    # 安装基本编译工具
+    local basic_packages=(
+        "gcc"
+        "gcc-c++"
+        "make"
+        "patch"
+        "git"
+    )
+    
+    for package in "${basic_packages[@]}"; do
+        if ! rpm -q "$package" &>/dev/null; then
+            log_info "安装 $package..."
+            sudo yum install -y "$package" 2>/dev/null || {
+                log_warn "$package 安装失败，尝试继续"
+            }
+        else
+            log_info "$package 已安装"
+        fi
+    done
+    
+    # 安装开发库
+    local dev_packages=(
+        "openssl-devel"
+        "libffi-devel"
+        "readline-devel"
+        "zlib-devel"
+        "libyaml-devel"
+        "sqlite-devel"
+        "bzip2-devel"
+        "ncurses-devel"
+    )
+    
+    for package in "${dev_packages[@]}"; do
+        if ! rpm -q "$package" &>/dev/null; then
+            log_info "安装 $package..."
+            sudo yum install -y "$package" 2>/dev/null || {
+                log_warn "$package 安装失败，可能影响Ruby编译"
+            }
+        else
+            log_info "$package 已安装"
+        fi
+    done
+    
+    # 检查关键工具是否可用
+    if ! command -v gcc &>/dev/null; then
+        log_error "GCC编译器未安装，无法编译Ruby"
+        return 1
+    fi
+    
+    if ! command -v make &>/dev/null; then
+        log_error "Make工具未安装，无法编译Ruby"
+        return 1
+    fi
+    
+    log_info "基本开发工具安装完成"
+    return 0
 }
 
 # 配置OpenCloudOS镜像源
@@ -168,31 +238,69 @@ configure_opencloudos_mirrors() {
         sudo cp /etc/yum.repos.d/OpenCloudOS-Base.repo /etc/yum.repos.d/OpenCloudOS-Base.repo.bak 2>/dev/null || true
     fi
     
-    # 配置清华大学镜像源
-    cat > /tmp/opencloudos-tuna.repo << 'EOF'
-[tuna-opencloudos-base]
-name=OpenCloudOS Base - Tsinghua
-baseurl=https://mirrors.tuna.tsinghua.edu.cn/opencloudos/$releasever/BaseOS/$basearch/os/
+    # 尝试多个镜像源，按优先级排序
+    local mirrors=(
+        "aliyun:https://mirrors.aliyun.com/opencloudos"
+        "tencent:https://mirrors.cloud.tencent.com/opencloudos"
+        "tuna:https://mirrors.tuna.tsinghua.edu.cn/opencloudos"
+        "ustc:https://mirrors.ustc.edu.cn/opencloudos"
+    )
+    
+    local selected_mirror=""
+    
+    # 测试镜像源连通性
+    for mirror_info in "${mirrors[@]}"; do
+        local name=$(echo $mirror_info | cut -d: -f1)
+        local url=$(echo $mirror_info | cut -d: -f2-)
+        
+        log_info "测试${name}镜像源连接性..."
+        if curl -s --connect-timeout 3 --max-time 5 "${url}/" > /dev/null 2>&1; then
+            log_info "选择${name}镜像源: ${url}"
+            selected_mirror="$url"
+            break
+        else
+            log_warn "${name}镜像源连接失败"
+        fi
+    done
+    
+    if [ -n "$selected_mirror" ]; then
+        # 配置选中的镜像源
+        cat > /tmp/opencloudos-mirror.repo << EOF
+[opencloudos-base]
+name=OpenCloudOS Base - Mirror
+baseurl=$selected_mirror/\$releasever/BaseOS/\$basearch/os/
 enabled=1
 gpgcheck=0
 priority=1
 
-[tuna-opencloudos-appstream]
-name=OpenCloudOS AppStream - Tsinghua
-baseurl=https://mirrors.tuna.tsinghua.edu.cn/opencloudos/$releasever/AppStream/$basearch/os/
+[opencloudos-appstream]
+name=OpenCloudOS AppStream - Mirror
+baseurl=$selected_mirror/\$releasever/AppStream/\$basearch/os/
+enabled=1
+gpgcheck=0
+priority=1
+
+[opencloudos-extras]
+name=OpenCloudOS Extras - Mirror
+baseurl=$selected_mirror/\$releasever/extras/\$basearch/os/
 enabled=1
 gpgcheck=0
 priority=1
 EOF
-    
-    # 安装清华镜像源配置
-    sudo mv /tmp/opencloudos-tuna.repo /etc/yum.repos.d/ 2>/dev/null || {
-        log_warn "镜像源配置失败，使用默认源"
-    }
+        
+        # 安装镜像源配置
+        sudo mv /tmp/opencloudos-mirror.repo /etc/yum.repos.d/ 2>/dev/null || {
+            log_warn "镜像源配置失败，使用默认源"
+        }
+    else
+        log_warn "所有镜像源都无法连接，保持默认配置"
+    fi
     
     # 清理并更新缓存
     sudo yum clean all &>/dev/null || true
-    sudo yum makecache &>/dev/null || true
+    sudo yum makecache &>/dev/null || {
+        log_warn "更新缓存失败，可能需要检查网络连接"
+    }
     
     log_info "镜像源配置完成"
 }
@@ -286,6 +394,7 @@ install_ruby_with_rvm() {
     cat > ~/.rvm/user/db << 'EOF'
 ruby_url=https://cache.ruby-china.com/pub/ruby
 ruby_url=https://mirrors.tuna.tsinghua.edu.cn/ruby
+ruby_url=https://mirrors.aliyun.com/ruby
 ruby_url=https://ftp.ruby-lang.org/pub/ruby
 EOF
     
@@ -507,6 +616,7 @@ show_help() {
     echo "  restart [mode]  重启应用"
     echo "  status          显示应用状态"
     echo "  install         安装依赖和初始化（自动安装Ruby 3.0+）"
+    echo "  simple-install  简化安装模式（适用于网络环境差的情况）"
     echo "  help            显示帮助信息"
     echo ""
     echo "环境变量:"
@@ -518,10 +628,14 @@ show_help() {
     echo "  • 自动检测并安装Ruby 3.0+"
     echo "  • 自动配置国内RubyGems镜像源"
     echo "  • 支持Linux/macOS/Windows多平台"
+    echo "  • 特别支持腾讯云OpenCloudOS系统"
+    echo "  • 智能镜像源切换和故障处理"
+    echo "  • 简化安装模式适应复杂网络环境"
     echo "  • 自动创建必需目录和数据库"
     echo ""
     echo "示例:"
     echo "  $0 install              # 安装依赖（包括Ruby）"
+    echo "  $0 simple-install       # 简化安装（网络环境差）"
     echo "  $0 start development    # 开发模式启动"
     echo "  $0 start production     # 生产模式启动"
     echo "  $0 restart production  # 重启到生产模式"
@@ -562,6 +676,19 @@ main() {
         install)
             install_system
             ;;
+        simple-install)
+            log_info "使用简化安装模式..."
+            if grep -q "OpenCloudOS" /etc/os-release 2>/dev/null; then
+                simple_install_ruby_opencloudos
+            else
+                log_error "简化安装模式仅支持OpenCloudOS系统"
+                exit 1
+            fi
+            install_dependencies
+            create_directories
+            init_database
+            log_info "简化安装完成！"
+            ;;
         help|--help|-h)
             show_help
             ;;
@@ -575,3 +702,92 @@ main() {
 
 # 执行主函数
 main "$@"
+
+# 简化安装模式 - 适用于网络环境较差的情况
+simple_install_ruby_opencloudos() {
+    log_info "使用简化模式安装Ruby（适用于网络环境差的情况）..."
+    
+    # 跳过镜像源配置，直接安装基本工具
+    log_info "安装最基本的开发工具..."
+    
+    # 只安装核心依赖
+    local core_packages=("gcc" "gcc-c++" "make" "openssl-devel" "zlib-devel")
+    
+    for package in "${core_packages[@]}"; do
+        log_info "安装 $package..."
+        sudo yum install -y "$package" 2>/dev/null || {
+            log_warn "$package 安装失败，尝试继续"
+        }
+    done
+    
+    # 检查核心工具
+    if ! command -v gcc &>/dev/null; then
+        log_error "GCC未安装，无法编译Ruby"
+        return 1
+    fi
+    
+    # 使用最简单的方式安装Ruby
+    log_info "尝试编译安装Ruby（最小依赖）..."
+    
+    # 下载Ruby源码
+    local ruby_version="3.2.0"
+    local download_dir="/tmp/ruby-build"
+    
+    mkdir -p "$download_dir"
+    cd "$download_dir"
+    
+    # 尝试多个下载源
+    local download_urls=(
+        "https://cache.ruby-china.com/pub/ruby/3.2/ruby-${ruby_version}.tar.gz"
+        "https://mirrors.tuna.tsinghua.edu.cn/ruby/ruby-${ruby_version}.tar.gz"
+        "https://ftp.ruby-lang.org/pub/ruby/3.2/ruby-${ruby_version}.tar.gz"
+    )
+    
+    local downloaded=false
+    for url in "${download_urls[@]}"; do
+        log_info "尝试从 $url 下载Ruby源码..."
+        if curl -L --connect-timeout 10 --max-time 300 -o "ruby-${ruby_version}.tar.gz" "$url" 2>/dev/null; then
+            downloaded=true
+            break
+        else
+            log_warn "下载失败，尝试下一个源"
+        fi
+    done
+    
+    if [ "$downloaded" = false ]; then
+        log_error "无法下载Ruby源码，请检查网络连接"
+        return 1
+    fi
+    
+    # 解压并编译
+    log_info "解压和编译Ruby..."
+    tar -xzf "ruby-${ruby_version}.tar.gz"
+    cd "ruby-${ruby_version}"
+    
+    # 配置编译选项（最小化）
+    ./configure --prefix=/usr/local/ruby --disable-install-doc --disable-install-rdoc --disable-install-capi
+    
+    # 编译（使用单线程避免内存不足）
+    make -j1
+    
+    # 安装
+    sudo make install
+    
+    # 创建软链接
+    sudo ln -sf /usr/local/ruby/bin/ruby /usr/local/bin/ruby
+    sudo ln -sf /usr/local/ruby/bin/gem /usr/local/bin/gem
+    sudo ln -sf /usr/local/ruby/bin/irb /usr/local/bin/irb
+    
+    # 更新PATH
+    echo 'export PATH="/usr/local/ruby/bin:$PATH"' >> ~/.bashrc
+    export PATH="/usr/local/ruby/bin:$PATH"
+    
+    # 验证安装
+    if /usr/local/ruby/bin/ruby --version | grep -q "3.2"; then
+        log_info "Ruby编译安装成功: $(/usr/local/ruby/bin/ruby --version)"
+        return 0
+    else
+        log_error "Ruby编译安装失败"
+        return 1
+    fi
+}
