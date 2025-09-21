@@ -30,26 +30,41 @@
 
 ## 🚀 快速开始
 
-### 安装依赖
+### 前置要求
+
+- Git
+- Linux/macOS/Windows (推荐Linux)
+- **Ruby 3.0+** （脚本会自动安装）
+
+### 一键安装
 
 ```bash
 # 克隆项目
 git clone https://github.com/hanxiaochi/CICD-pate.git cicd-system
 cd cicd-system
 
-# 一键安装
+# 一键安装（自动安装Ruby 3.0+和依赖）
 chmod +x start_refactored.sh
 ./start_refactored.sh install
 ```
 
+> ✨ **自动化安装特性**：
+> - 自动检测并安装Ruby 3.0+
+> - 自动配置国内RubyGems镜像源（清华大学）
+> - 支持Ubuntu/Debian/CentOS/Fedora/macOS等多平台
+> - Windows用户会获得自动下载链接
+
 ### 启动系统
 
 ```bash
-# 开发模式
+# 方法一：开发模式
 ./start_refactored.sh start development
 
-# 生产模式  
+# 方法二：生产模式  
 ./start_refactored.sh start production
+
+# 方法三：Docker部署（推荐）
+docker-compose up -d
 ```
 
 ### 访问系统

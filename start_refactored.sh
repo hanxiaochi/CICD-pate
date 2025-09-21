@@ -28,17 +28,146 @@ check_ruby() {
     log_info "检查Ruby环境..."
     
     if ! command -v ruby &> /dev/null; then
-        log_error "Ruby未安装，请先安装Ruby 3.0+。"
-        exit 1
+        log_warn "Ruby未安装，开始自动安装Ruby 3.0+..."
+        install_ruby
+    else
+        ruby_version=$(ruby -v | cut -d' ' -f2)
+        log_info "Ruby版本: $ruby_version"
+        
+        # 检查Ruby版本是否满足要求
+        if ! ruby -e "exit(RUBY_VERSION.split('.').map(&:to_i) <=> [3, 0, 0]) >= 0"; then
+            log_warn "Ruby版本过低，需要3.0+，开始升级..."
+            install_ruby
+        fi
     fi
     
-    ruby_version=$(ruby -v | cut -d' ' -f2)
-    log_info "Ruby版本: $ruby_version"
+    # 配置国内镜像源
+    configure_ruby_mirrors
     
     if ! command -v bundler &> /dev/null; then
         log_warn "Bundler未安装，正在安装..."
         gem install bundler
     fi
+}
+
+# 安装Ruby
+install_ruby() {
+    log_info "开始安装Ruby 3.0+..."
+    
+    # 检测操作系统
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        install_ruby_linux
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        install_ruby_macos
+    elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+        install_ruby_windows
+    else
+        log_error "不支持的操作系统: $OSTYPE"
+        log_error "请手动安装Ruby 3.0+: https://www.ruby-lang.org/zh_cn/downloads/"
+        exit 1
+    fi
+}
+
+# Linux系统安装Ruby
+install_ruby_linux() {
+    log_info "在Linux系统上安装Ruby..."
+    
+    # 检测Linux发行版
+    if command -v apt-get &> /dev/null; then
+        # Ubuntu/Debian
+        log_info "检测到Ubuntu/Debian系统"
+        sudo apt-get update
+        sudo apt-get install -y software-properties-common
+        sudo apt-add-repository -y ppa:brightbox/ruby-ng
+        sudo apt-get update
+        sudo apt-get install -y ruby3.2 ruby3.2-dev build-essential
+        
+    elif command -v yum &> /dev/null; then
+        # CentOS/RHEL
+        log_info "检测到CentOS/RHEL系统"
+        sudo yum install -y centos-release-scl
+        sudo yum install -y rh-ruby32 rh-ruby32-ruby-devel gcc gcc-c++ make
+        echo 'source /opt/rh/rh-ruby32/enable' >> ~/.bashrc
+        source /opt/rh/rh-ruby32/enable
+        
+    elif command -v dnf &> /dev/null; then
+        # Fedora
+        log_info "检测到Fedora系统"
+        sudo dnf install -y ruby ruby-devel gcc gcc-c++ make
+        
+    elif command -v zypper &> /dev/null; then
+        # openSUSE
+        log_info "检测到openSUSE系统"
+        sudo zypper install -y ruby ruby-devel gcc gcc-c++ make
+        
+    else
+        log_warn "未检测到支持的包管理器，尝试使用RVM安装..."
+        install_ruby_with_rvm
+    fi
+}
+
+# macOS系统安装Ruby
+install_ruby_macos() {
+    log_info "在macOS系统上安装Ruby..."
+    
+    if command -v brew &> /dev/null; then
+        log_info "使用Homebrew安装Ruby"
+        brew install ruby@3.2
+        echo 'export PATH="/usr/local/opt/ruby@3.2/bin:$PATH"' >> ~/.zshrc
+        echo 'export PATH="/usr/local/opt/ruby@3.2/bin:$PATH"' >> ~/.bash_profile
+        source ~/.zshrc 2>/dev/null || source ~/.bash_profile
+    else
+        log_warn "未检测到Homebrew，请先安装: https://brew.sh/"
+        log_info "或使用RVM安装Ruby..."
+        install_ruby_with_rvm
+    fi
+}
+
+# Windows系统安装Ruby
+install_ruby_windows() {
+    log_info "在Windows系统上安装Ruby..."
+    log_warn "请手动下载并安装Ruby 3.0+:"
+    log_warn "下载地址: https://rubyinstaller.org/downloads/"
+    log_warn "推荐下载: Ruby+Devkit 3.2.x (x64)"
+    log_warn "安装完成后重新运行此脚本"
+    exit 1
+}
+
+# 使用RVM安装Ruby
+install_ruby_with_rvm() {
+    log_info "使用RVM安装Ruby..."
+    
+    # 安装RVM
+    if ! command -v rvm &> /dev/null; then
+        log_info "安装RVM..."
+        \curl -sSL https://get.rvm.io | bash -s stable
+        source ~/.rvm/scripts/rvm
+    fi
+    
+    # 使用RVM安装Ruby
+    log_info "使用RVM安装Ruby 3.2.0..."
+    rvm install 3.2.0
+    rvm use 3.2.0 --default
+}
+
+# 配置Ruby国内镜像源
+configure_ruby_mirrors() {
+    log_info "配置Ruby国内镜像源..."
+    
+    # 配置RubyGems镜像源（使用清华大学镜像）
+    if gem sources | grep -q "https://rubygems.org/"; then
+        log_info "移除官方源并添加清华大学镜像源..."
+        gem sources --remove https://rubygems.org/
+        gem sources --add https://mirrors.tuna.tsinghua.edu.cn/rubygems/
+    fi
+    
+    # 配置Bundler镜像源
+    log_info "配置Bundler镜像源..."
+    bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
+    
+    # 显示当前镜像源
+    log_info "当前RubyGems镜像源:"
+    gem sources -l
 }
 
 # 安装依赖
@@ -189,7 +318,7 @@ show_help() {
     echo "  stop            停止应用"
     echo "  restart [mode]  重启应用"
     echo "  status          显示应用状态"
-    echo "  install         安装依赖和初始化"
+    echo "  install         安装依赖和初始化（自动安装Ruby 3.0+）"
     echo "  help            显示帮助信息"
     echo ""
     echo "环境变量:"
@@ -197,8 +326,14 @@ show_help() {
     echo "  WEBSOCKET_PORT  WebSocket端口 (默认: 8080)"
     echo "  RACK_ENV        运行环境 (development|production)"
     echo ""
+    echo "特性:"
+    echo "  • 自动检测并安装Ruby 3.0+"
+    echo "  • 自动配置国内RubyGems镜像源"
+    echo "  • 支持Linux/macOS/Windows多平台"
+    echo "  • 自动创建必需目录和数据库"
+    echo ""
     echo "示例:"
-    echo "  $0 install              # 安装依赖"
+    echo "  $0 install              # 安装依赖（包括Ruby）"
     echo "  $0 start development    # 开发模式启动"
     echo "  $0 start production     # 生产模式启动"
     echo "  $0 restart production  # 重启到生产模式"
