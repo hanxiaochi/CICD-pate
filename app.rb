@@ -6,7 +6,7 @@ require 'bcrypt'
 require 'git'
 require 'net/sftp'
 require 'net/ssh'
-require 'fileutils'
+require 'fileutils' # 确保加载 FileUtils
 require 'json'
 require 'time'
 
@@ -821,5 +821,5 @@ end
 # 创建所需目录 - 跨平台兼容
 required_dirs = ['./views', './public', './tmp']
 required_dirs.each do |dir|
-  FileUtils.mkdir_p(dir) unless File.directory?(dir)
+  FileUtils.mkdir_p(dir) unless File.directory?(dir) # 修复 Dir.mkdir_p 为 FileUtils.mkdir_p
 end
