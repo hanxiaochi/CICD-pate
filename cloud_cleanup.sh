@@ -249,7 +249,7 @@ show_redeploy_commands() {
     echo -e "\n${BLUE}🚀 重新部署命令${NC}"
     echo "================"
     echo "一键部署："
-    echo "curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_deploy.sh | bash"
+    echo "curl -fsSL https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate/raw/master/cloud_deploy.sh | bash"
     echo ""
     echo "或手动部署："
     echo "git clone https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate.git"

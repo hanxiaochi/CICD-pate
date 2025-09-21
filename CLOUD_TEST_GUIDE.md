@@ -16,13 +16,13 @@
 ### 方式1：直接下载执行（推荐）
 ```bash
 # 一键清理
-curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_cleanup.sh | bash
+curl -fsSL https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate/raw/master/cloud_cleanup.sh | bash
 
 # 一键部署  
-curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_deploy.sh | bash
+curl -fsSL https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate/raw/master/cloud_deploy.sh | bash
 
 # 一键验证
-curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_verify.sh | bash
+curl -fsSL https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate/raw/master/cloud_verify.sh | bash
 ```
 
 ### 方式2：克隆后使用
@@ -243,5 +243,5 @@ git clone --depth 1 https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate.git
 **快速开始命令：**
 ```bash
 # 一步完成所有操作
-curl -fsSL https://raw.xget.xi-xu.me/gh/hanxiaochi/CICD-pate/master/cloud_test_workflow.sh | bash -s full
+curl -fsSL https://xget.xi-xu.me/gh/hanxiaochi/CICD-pate/raw/master/cloud_test_workflow.sh | bash -s full
 ```
