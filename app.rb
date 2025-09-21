@@ -139,6 +139,12 @@ get '/logout' do
   redirect '/login'
 end
 
+get '/' do
+  login_required
+  @projects = Project.all || [] # 确保 @projects 至少是一个空数组
+  haml :index
+end
+
 ## 项目管理
 get '/projects' do
   login_required
