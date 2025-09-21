@@ -1,47 +1,43 @@
-# 使用官方Ruby镜像作为基础
-FROM ruby:3.2-slim-bullseye
+# CICD系统 - 统一Docker镜像
+FROM ruby:3.2-alpine
 
-# 设置UTF-8编码环境变量
+# 设置环境变量
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
+ENV RACK_ENV=production
 
 # 设置工作目录
 WORKDIR /app
 
-# 安装必要的系统依赖
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-    build-essential \
+# 安装系统依赖
+RUN apk add --no-cache \
+    sqlite \
+    sqlite-dev \
+    build-base \
     git \
-    sqlite3 \
-    libsqlite3-dev \
-    curl && \
-    rm -rf /var/lib/apt/lists/*
+    curl \
+    && rm -rf /var/cache/apk/*
 
-# 切换到阿里云 RubyGems 镜像源
-RUN gem sources --add https://mirrors.aliyun.com/rubygems/ --remove https://rubygems.org/ && \
-    gem sources -l # 验证镜像源是否切换成功
+# 配置RubyGems镜像源
+RUN gem sources --add https://gems.ruby-china.com/ --remove https://rubygems.org/
 
-# 安装Bundler
-RUN gem install bundler -v 2.4.22
+# 安装必要的gems
+RUN gem install sinatra sequel sqlite3 bcrypt json --no-document
 
-# 复制Gemfile
-COPY Gemfile ./
+# 安装完整功能gems（可选）
+RUN gem install sinatra-flash haml sass --no-document || echo "Optional gems installation failed, will use simple mode"
 
-# 安装Ruby依赖
-RUN bundle install --jobs 4 --retry 3 --verbose
+# 复制主应用文件
+COPY app.rb .
 
-# 复制应用代码
-COPY . .
-
-# 确保所需目录存在并有正确权限
-RUN mkdir -p public/images tmp && \
-    chmod -R 755 public tmp
+# 创建数据库目录
+RUN mkdir -p /app
 
 # 暴露端口
 EXPOSE 4567
 
-# 设置启动命令 - 默认使用完整版CICD系统
-# 环境变量CICD_MODE可选值: full(完整版), simple(简化版)
-ENV CICD_MODE=full
-CMD ["sh", "-c", "if [ \"$CICD_MODE\" = \"simple\" ]; then ruby start_docker.rb; else ruby start_full_docker.rb; fi"]
+# 设置模式环境变量（可通过docker run -e CICD_MODE=full 覆盖）
+ENV CICD_MODE=simple
+
+# 启动命令
+CMD ["ruby", "app.rb"]
