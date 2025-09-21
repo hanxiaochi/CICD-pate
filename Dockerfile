@@ -41,5 +41,5 @@ RUN mkdir -p public/images tmp && \
 # 暴露端口
 EXPOSE 4567
 
-# 设置启动命令
-CMD ["ruby", "app_refactored.rb"]
+# 设置启动命令 - 使用绝对可靠的Docker启动脚本
+CMD ["ruby", "start_docker.rb"]
