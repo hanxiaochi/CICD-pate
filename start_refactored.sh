@@ -125,30 +125,76 @@ install_ruby_centos() {
 install_ruby_opencloudos() {
     log_info "为腾讯云OpenCloudOS系统安装Ruby..."
     
-    # 先尝试安装基本工具
-    sudo yum install -y gcc gcc-c++ make openssl-devel libffi-devel readline-devel zlib-devel
+    # 配置OpenCloudOS镜像源
+    configure_opencloudos_mirrors
     
-    # 尝试安装EPEL源
-    if ! yum list epel-release &>/dev/null; then
-        log_info "安装EPEL源..."
-        sudo yum install -y epel-release
-    fi
+    # 安装基本开发工具
+    log_info "安装基本开发工具..."
+    sudo yum install -y gcc gcc-c++ make patch
+    sudo yum install -y openssl-devel libffi-devel readline-devel zlib-devel
+    sudo yum install -y libyaml-devel sqlite-devel
     
-    # 尝试直接安装ruby
+    # 尝试安装EPEL源（如果失败不中断）
+    log_info "尝试配置EPEL源..."
+    sudo yum install -y epel-release 2>/dev/null || {
+        log_warn "EPEL源安装失败，继续使用官方源"
+    }
+    
+    # 尝试直接安装ruby（通常版本较低）
     if yum list ruby &>/dev/null; then
-        log_info "使用yum安装Ruby..."
-        sudo yum install -y ruby ruby-devel
+        log_info "检查yum中的Ruby版本..."
+        sudo yum install -y ruby ruby-devel 2>/dev/null || true
         
         # 检查版本是否满足要求
-        if ruby -e "exit(RUBY_VERSION.split('.').map(&:to_i) <=> [3, 0, 0]) >= 0" 2>/dev/null; then
-            log_info "Ruby版本满足要求"
+        if command -v ruby &>/dev/null && ruby -e "exit(RUBY_VERSION.split('.').map(&:to_i) <=> [3, 0, 0]) >= 0" 2>/dev/null; then
+            log_info "Ruby版本满足要求: $(ruby -v)"
             return 0
+        else
+            log_warn "yum安装的Ruby版本过低，需要升级"
         fi
     fi
     
-    # 如果上面都失败，使用RVM安装
-    log_warn "yum安装失败或版本过低，使用RVM安装Ruby 3.2..."
+    # 使用RVM安装最新版本
+    log_info "使用RVM安装Ruby 3.2..."
     install_ruby_with_rvm
+}
+
+# 配置OpenCloudOS镜像源
+configure_opencloudos_mirrors() {
+    log_info "配置OpenCloudOS国内镜像源..."
+    
+    # 备份原始源文件
+    if [ ! -f /etc/yum.repos.d/OpenCloudOS-Base.repo.bak ]; then
+        sudo cp /etc/yum.repos.d/OpenCloudOS-Base.repo /etc/yum.repos.d/OpenCloudOS-Base.repo.bak 2>/dev/null || true
+    fi
+    
+    # 配置清华大学镜像源
+    cat > /tmp/opencloudos-tuna.repo << 'EOF'
+[tuna-opencloudos-base]
+name=OpenCloudOS Base - Tsinghua
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/opencloudos/$releasever/BaseOS/$basearch/os/
+enabled=1
+gpgcheck=0
+priority=1
+
+[tuna-opencloudos-appstream]
+name=OpenCloudOS AppStream - Tsinghua
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/opencloudos/$releasever/AppStream/$basearch/os/
+enabled=1
+gpgcheck=0
+priority=1
+EOF
+    
+    # 安装清华镜像源配置
+    sudo mv /tmp/opencloudos-tuna.repo /etc/yum.repos.d/ 2>/dev/null || {
+        log_warn "镜像源配置失败，使用默认源"
+    }
+    
+    # 清理并更新缓存
+    sudo yum clean all &>/dev/null || true
+    sudo yum makecache &>/dev/null || true
+    
+    log_info "镜像源配置完成"
 }
 
 # Fedora安装
@@ -195,7 +241,9 @@ install_ruby_with_rvm() {
     # 安装必需的依赖
     if command -v yum &> /dev/null; then
         log_info "安装编译依赖..."
-        sudo yum groupinstall -y "Development Tools"
+        sudo yum groupinstall -y "Development Tools" 2>/dev/null || {
+            sudo yum install -y gcc gcc-c++ make patch
+        }
         sudo yum install -y openssl-devel libffi-devel readline-devel zlib-devel libyaml-devel sqlite-devel
     elif command -v apt-get &> /dev/null; then
         sudo apt-get update
@@ -206,14 +254,20 @@ install_ruby_with_rvm() {
     if ! command -v rvm &> /dev/null; then
         log_info "下载并安装RVM..."
         
-        # 导入GPG密钥
-        log_info "导入RVM GPG密钥..."
-        curl -sSL https://rvm.io/mpapis.asc | gpg --import - || true
-        curl -sSL https://rvm.io/pkuczynski.asc | gpg --import - || true
+        # 设置代理和镜像源环境变量
+        export RVM_RUBY_MIRRORS="https://cache.ruby-china.com/pub/ruby,https://mirrors.tuna.tsinghua.edu.cn/ruby"
         
-        # 安装RVM
-        log_info "下载RVM安装脚本..."
-        curl -sSL https://get.rvm.io | bash -s stable
+        # 导入GPG密钥（使用国内代理）
+        log_info "导入RVM GPG密钥..."
+        curl -sSL https://rvm.io/mpapis.asc | gpg --import - 2>/dev/null || true
+        curl -sSL https://rvm.io/pkuczynski.asc | gpg --import - 2>/dev/null || true
+        
+        # 安装RVM（使用清华镜像）
+        log_info "从清华镜像下载RVM安装脚本..."
+        curl -sSL https://mirrors.tuna.tsinghua.edu.cn/rvm/install | bash -s stable --ruby 2>/dev/null || {
+            log_warn "清华镜像失败，尝试官方源..."
+            curl -sSL https://get.rvm.io | bash -s stable
+        }
         
         # 加载RVM环境
         if [ -f ~/.rvm/scripts/rvm ]; then
@@ -223,22 +277,36 @@ install_ruby_with_rvm() {
         fi
         
         # 更新RVM
-        rvm get stable
+        rvm get stable 2>/dev/null || true
     fi
+    
+    # 配置RVM使用国内镜像
+    log_info "配置RVM国内镜像源..."
+    mkdir -p ~/.rvm/user
+    cat > ~/.rvm/user/db << 'EOF'
+ruby_url=https://cache.ruby-china.com/pub/ruby
+ruby_url=https://mirrors.tuna.tsinghua.edu.cn/ruby
+ruby_url=https://ftp.ruby-lang.org/pub/ruby
+EOF
     
     # 使用RVM安装Ruby
     log_info "使用RVM安装Ruby 3.2.0..."
     
-    # 设置RVM镜像源(中国镜像)
-    echo "ruby_url=https://cache.ruby-china.com/pub/ruby" > ~/.rvm/user/db
+    # 重新加载RVM
+    source ~/.rvm/scripts/rvm 2>/dev/null || source /usr/local/rvm/scripts/rvm 2>/dev/null || true
     
     # 安装Ruby
-    rvm install 3.2.0
+    rvm install 3.2.0 --disable-binary 2>/dev/null || {
+        log_warn "从源码编译安装Ruby..."
+        rvm install 3.2.0
+    }
+    
     rvm use 3.2.0 --default
     
     # 验证安装
     if ruby --version | grep -q "3.2"; then
-        log_info "Ruby 3.2.0安装成功"
+        log_info "Ruby 3.2.0安装成功: $(ruby --version)"
+        return 0
     else
         log_error "Ruby安装失败"
         return 1
@@ -252,28 +320,41 @@ configure_ruby_mirrors() {
     # 配置RubyGems镜像源（优先使用Ruby中国，备用清华大学）
     if gem sources | grep -q "https://rubygems.org/"; then
         log_info "移除官方源并添加国内镜像源..."
-        gem sources --remove https://rubygems.org/
+        gem sources --remove https://rubygems.org/ 2>/dev/null || true
         
         # 尝试Ruby中国镜像
-        if curl -s --connect-timeout 5 https://gems.ruby-china.com/ > /dev/null; then
+        if curl -s --connect-timeout 3 --max-time 5 https://gems.ruby-china.com/ > /dev/null 2>&1; then
             log_info "使用Ruby中国镜像源..."
-            gem sources --add https://gems.ruby-china.com/
-            bundle config mirror.https://rubygems.org https://gems.ruby-china.com
-        else
+            gem sources --add https://gems.ruby-china.com/ 2>/dev/null || true
+            bundle config set --global mirror.https://rubygems.org https://gems.ruby-china.com 2>/dev/null || true
+        elif curl -s --connect-timeout 3 --max-time 5 https://mirrors.tuna.tsinghua.edu.cn/rubygems/ > /dev/null 2>&1; then
             log_info "使用清华大学镜像源..."
-            gem sources --add https://mirrors.tuna.tsinghua.edu.cn/rubygems/
-            bundle config mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
+            gem sources --add https://mirrors.tuna.tsinghua.edu.cn/rubygems/ 2>/dev/null || true
+            bundle config set --global mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems 2>/dev/null || true
+        elif curl -s --connect-timeout 3 --max-time 5 https://mirrors.aliyun.com/rubygems/ > /dev/null 2>&1; then
+            log_info "使用阿里云镜像源..."
+            gem sources --add https://mirrors.aliyun.com/rubygems/ 2>/dev/null || true
+            bundle config set --global mirror.https://rubygems.org https://mirrors.aliyun.com/rubygems 2>/dev/null || true
+        else
+            log_warn "所有国内镜像都无法访问，保持默认源"
+            gem sources --add https://rubygems.org/ 2>/dev/null || true
         fi
     fi
     
     # 显示当前镜像源
     log_info "当前RubyGems镜像源:"
-    gem sources -l
+    gem sources -l 2>/dev/null || log_warn "无法获取gem源列表"
     
     # 设置国内NPM镜像（如果需要）
     if command -v npm &> /dev/null; then
         log_info "配置NPM国内镜像源..."
-        npm config set registry https://registry.npmmirror.com
+        npm config set registry https://registry.npmmirror.com 2>/dev/null || true
+    fi
+    
+    # 配置yarn镜像（如果存在）
+    if command -v yarn &> /dev/null; then
+        log_info "配置Yarn国内镜像源..."
+        yarn config set registry https://registry.npmmirror.com 2>/dev/null || true
     fi
 }
 

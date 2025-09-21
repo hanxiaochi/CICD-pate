@@ -30,8 +30,13 @@ chmod +x start_refactored.sh
 
 系统会自动配置以下国内镜像源以提升安装速度：
 
-- **RubyGems源**: 清华大学镜像 `https://mirrors.tuna.tsinghua.edu.cn/rubygems/`
-- **Bundler源**: 清华大学镜像
+- **RubyGems源**: 
+  - 优先级1: Ruby中国镜像 `https://gems.ruby-china.com/`
+  - 优先级2: 清华大学镜像 `https://mirrors.tuna.tsinghua.edu.cn/rubygems/`
+  - 优先级3: 阿里云镜像 `https://mirrors.aliyun.com/rubygems/`
+- **Bundler源**: 自动配置对应的镜像
+- **RVM Ruby源**: 多镜像备份下载
+- **OpenCloudOS系统源**: 自动配置清华大学镜像
 - 自动移除官方源，避免网络问题
 
 ### 🛠️ 安装内容
@@ -57,9 +62,35 @@ sudo yum install -y centos-release-scl
 sudo yum install -y rh-ruby32 rh-ruby32-ruby-devel gcc gcc-c++ make
 
 # 腾讯云OpenCloudOS特别处理
-# 系统会自动检测并安装基本依赖，然后使用RVM安装Ruby 3.2
-sudo yum install -y gcc gcc-c++ make openssl-devel libffi-devel
-curl -sSL https://get.rvm.io | bash -s stable
+# 系统会自动检测并配置国内镜像源，然后安装基本依赖
+
+# 配置清华大学OpenCloudOS镜像源
+cat > /etc/yum.repos.d/opencloudos-tuna.repo << 'EOF'
+[tuna-opencloudos-base]
+name=OpenCloudOS Base - Tsinghua
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/opencloudos/$releasever/BaseOS/$basearch/os/
+enabled=1
+gpgcheck=0
+priority=1
+
+[tuna-opencloudos-appstream]
+name=OpenCloudOS AppStream - Tsinghua
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/opencloudos/$releasever/AppStream/$basearch/os/
+enabled=1
+gpgcheck=0
+priority=1
+EOF
+
+# 安装基本依赖
+sudo yum install -y gcc gcc-c++ make patch
+sudo yum install -y openssl-devel libffi-devel readline-devel zlib-devel
+sudo yum install -y libyaml-devel sqlite-devel
+
+# 尝试安装EPEL源（如果失败不中断）
+sudo yum install -y epel-release 2>/dev/null || true
+
+# 使用RVM安装Ruby 3.2（多镜像源备份）
+curl -sSL https://mirrors.tuna.tsinghua.edu.cn/rvm/install | bash -s stable --ruby
 source ~/.rvm/scripts/rvm
 rvm install 3.2.0
 rvm use 3.2.0 --default
@@ -111,18 +142,70 @@ bundle config     # 查看bundler配置
    sudo chown -R $(whoami) ~/.gem
    ```
 
-2. **网络问题**
+2. **网络问题/镜像源问题**
    ```bash
-   # 手动配置镜像源
+   # 手动配置镜像源（多个备选）
    gem sources --remove https://rubygems.org/
+   
+   # 尝试Ruby中国镜像
+   gem sources --add https://gems.ruby-china.com/
+   
+   # 或者使用清华大学镜像
    gem sources --add https://mirrors.tuna.tsinghua.edu.cn/rubygems/
+   
+   # 或者使用阿里云镜像
+   gem sources --add https://mirrors.aliyun.com/rubygems/
+   
+   # 验证镜像源
+   gem sources -l
+   curl -I https://gems.ruby-china.com/
    ```
 
-3. **编译问题**
+3. **腾讯云OpenCloudOS EPEL源问题**
+   ```bash
+   # 手动配置清华大学镜像源
+   sudo tee /etc/yum.repos.d/opencloudos-tuna.repo << 'EOF'
+   [tuna-opencloudos-base]
+   name=OpenCloudOS Base - Tsinghua
+   baseurl=https://mirrors.tuna.tsinghua.edu.cn/opencloudos/$releasever/BaseOS/$basearch/os/
+   enabled=1
+   gpgcheck=0
+   priority=1
+   
+   [tuna-opencloudos-appstream]
+   name=OpenCloudOS AppStream - Tsinghua
+   baseurl=https://mirrors.tuna.tsinghua.edu.cn/opencloudos/$releasever/AppStream/$basearch/os/
+   enabled=1
+   gpgcheck=0
+   priority=1
+   EOF
+   
+   sudo yum clean all
+   sudo yum makecache
+   ```
+
+4. **编译问题**
    ```bash
    # 安装开发工具
    sudo apt-get install build-essential  # Ubuntu/Debian
    sudo yum groupinstall "Development Tools"  # CentOS/RHEL
+   sudo yum install gcc gcc-c++ make patch  # OpenCloudOS
+   ```
+
+5. **RVM安装问题**
+   ```bash
+   # 手动使用清华镜像安装RVM
+   curl -sSL https://mirrors.tuna.tsinghua.edu.cn/rvm/install | bash -s stable
+   
+   # 或者使用官方源
+   curl -sSL https://get.rvm.io | bash -s stable
+   
+   # 重新加载环境
+   source ~/.rvm/scripts/rvm
+   
+   # 配置Ruby下载镜像
+   echo "ruby_url=https://cache.ruby-china.com/pub/ruby" > ~/.rvm/user/db
+   echo "ruby_url=https://mirrors.tuna.tsinghua.edu.cn/ruby" >> ~/.rvm/user/db
    ```
 
 ## 🎯 验证安装
