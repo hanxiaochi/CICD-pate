@@ -1,187 +1,144 @@
-# CICD系统 - 统一精简版
+# CICD-pate
 
-一个现代化的CI/CD持续集成部署系统，支持简化模式和完整功能模式。
+一个基于Ruby Sinatra框架的持续集成/持续部署(CI/CD)系统示例项目。
 
-## ✨ 特性
+## 项目简介
 
-### 🎯 双模式支持
-- **简化模式** (`simple`): 基础用户管理、项目管理、API接口
-- **完整模式** (`full`): 工作空间、构建管理、资源管理、系统监控
+CICD-pate是一个功能完整的CI/CD平台，提供了项目管理、构建管理、资源管理、脚本管理等核心功能。该项目旨在演示如何使用Ruby Sinatra框架构建一个现代化的Web应用程序。
 
-### 🚀 快速部署
-- **原生安装**: 自动检测系统环境，安装依赖
-- **Docker部署**: 一键容器化部署
-- **多平台支持**: Ubuntu、CentOS、OpenCloudOS等
+## 功能特性
 
-## 📦 快速开始
+### 1. 项目管理
+- 创建和管理项目
+- 项目详情查看
+- 项目列表展示
+- 项目搜索功能
 
-### 方式一：原生安装
+### 2. 构建管理
+- 创建构建任务
+- 查看构建历史
+- 构建状态跟踪
+- 重新构建功能
 
-```bash
-# 下载代码
-git clone https://your-repo.git
-cd CICD-pate
+### 3. 资源管理
+- 管理服务器资源（SSH、Docker、Kubernetes、Windows等）
+- 资源连接测试
+- 终端连接功能
+- 资源状态监控
 
-# 自动安装并启动
-chmod +x install.sh
-./install.sh
+### 4. 脚本管理
+- 创建和管理自动化脚本
+- 脚本分类管理
+- 脚本执行历史
 
-# 手动启动
-./cicd-start.sh
-# 或者直接
-ruby app.rb
-```
+### 5. 插件管理
+- 插件安装和卸载
+- 插件状态管理
 
-### 方式二：Docker部署
+### 6. 工作空间
+- 工作空间管理
+- 环境隔离
 
-```bash
-# 简化模式（默认）
-export CICD_MODE=simple
-docker-compose up -d
+### 7. 系统管理
+- 系统配置
+- 用户管理
+- 权限控制
 
-# 完整功能模式
-export CICD_MODE=full
-docker-compose up -d
+## 技术栈
 
-# 查看日志
-docker-compose logs -f
-```
+- **后端框架**: Ruby Sinatra
+- **数据库**: SQLite (开发环境)
+- **模板引擎**: Haml
+- **前端框架**: Bootstrap 5
+- **图标库**: Bootstrap Icons
+- **构建工具**: Maven (Java项目示例)
 
-## 🔧 环境要求
+## 安装和运行
 
-- **Ruby**: 3.0+ 
-- **SQLite**: 数据库存储
-- **系统**: Linux (Ubuntu/CentOS/OpenCloudOS等)
+### 环境要求
+- Ruby 2.7+
+- Bundler
+- SQLite3
 
-## 🌐 访问系统
+### 安装步骤
 
-- **Web界面**: http://localhost:4567
-- **默认账户**: admin / admin123
+1. 克隆项目代码:
+   ```
+   git clone https://github.com/hanxiaochi/CICD-pate.git
+   cd CICD-pate
+   ```
 
-## 📊 API接口
+2. 安装依赖:
+   ```
+   bundle install
+   ```
 
-### 基础API
-- `GET /api/health` - 系统健康检查
-- `GET /api/version` - 版本信息
-- `GET /api/user` - 用户信息 
-- `GET /api/projects` - 项目列表
+3. 初始化数据库:
+   ```
+   ruby app.rb
+   ```
 
-### 完整模式API (CICD_MODE=full)
-- `GET /api/workspaces` - 工作空间管理
-- `GET /api/builds` - 构建历史
-- `GET /api/resources` - 资源管理
+4. 启动应用:
+   ```
+   ruby app.rb
+   ```
 
-## ⚙️ 模式切换
+5. 访问应用:
+   打开浏览器访问 `http://localhost:4567`
 
-### 设置环境变量
+## 使用说明
 
-```bash
-# 简化模式
-export CICD_MODE=simple
+1. 首次访问需要注册用户账户
+2. 登录后可以创建和管理项目
+3. 配置服务器资源用于部署
+4. 创建构建任务进行持续集成
+5. 使用脚本和插件扩展功能
 
-# 完整功能模式  
-export CICD_MODE=full
-```
-
-### Docker模式切换
-
-```bash
-# 停止当前容器
-docker-compose down
-
-# 设置模式
-export CICD_MODE=full  # 或 simple
-
-# 重新启动
-docker-compose up -d
-```
-
-## 🗂️ 项目结构
+## 项目结构
 
 ```
 CICD-pate/
-├── app.rb              # 统一主应用（整合所有功能）
-├── install.sh          # 原生安装脚本
-├── Dockerfile          # Docker镜像构建
-├── docker-compose.yml  # Docker编排配置
-└── README.md           # 说明文档
+├── app.rb                 # 主应用文件
+├── config.ru              # Rack配置文件
+├── Gemfile                # Ruby依赖声明
+├── Gemfile.lock           # Ruby依赖锁定文件
+├── lib/                   # 库文件
+│   ├── models/            # 数据模型
+│   └── tasks/             # 任务脚本
+├── views/                 # 视图模板
+├── public/                # 静态资源
+├── db/                    # 数据库文件
+└── test-java-project/     # Java测试项目示例
 ```
 
-## 🔍 功能对比
+## 开发说明
 
-| 功能 | 简化模式 | 完整模式 |
-|------|----------|----------|
-| 用户登录认证 | ✅ | ✅ |
-| 项目管理 | ✅ | ✅ |
-| API接口 | ✅ | ✅ |
-| 工作空间管理 | ❌ | ✅ |
-| 构建管理 | ❌ | ✅ |
-| 资源管理 | ❌ | ✅ |
-| 系统监控 | ❌ | ✅ |
-| 高级UI | ❌ | ✅ |
+### 数据模型
 
-## 🔧 开发说明
+- User: 用户模型
+- Project: 项目模型
+- Build: 构建模型
+- Resource: 资源模型
+- Script: 脚本模型
+- Plugin: 插件模型
+- Workspace: 工作空间模型
 
-### 依赖管理
+### 路由结构
 
-**必需依赖**:
-- sinatra - Web框架
-- sequel - 数据库ORM  
-- sqlite3 - 数据库
-- bcrypt - 密码加密
-- json - JSON处理
+应用采用RESTful路由设计，主要路由包括：
+- `/` - 仪表板
+- `/projects` - 项目管理
+- `/builds` - 构建管理
+- `/resources` - 资源管理
+- `/scripts` - 脚本管理
+- `/plugins` - 插件管理
+- `/workspaces` - 工作空间管理
+- `/system` - 系统管理
 
-**可选依赖**:
-- sinatra-flash - 消息提示
-- haml - 模板引擎
-- sass - 样式处理
+## 贡献
 
-### 数据库
+欢迎提交Issue和Pull Request来改进这个项目。
 
-系统自动创建SQLite数据库，根据模式创建相应的表结构：
+## 许可证
 
-**简化模式**: users, projects, logs
-**完整模式**: users, workspaces, projects, builds, resources, logs
-
-## 🆘 故障排除
-
-### 常见问题
-
-1. **Ruby版本过低**
-   ```bash
-   # 检查版本
-   ruby -v
-   # 升级Ruby（推荐使用RVM）
-   ```
-
-2. **Gem安装失败**
-   ```bash
-   # 配置国内镜像源
-   gem sources --add https://gems.ruby-china.com/ --remove https://rubygems.org/
-   ```
-
-3. **数据库权限问题**
-   ```bash
-   # 确保目录权限
-   chmod 755 /app
-   ```
-
-4. **Docker启动失败**
-   ```bash
-   # 查看日志
-   docker-compose logs
-   # 重建镜像
-   docker-compose build --no-cache
-   ```
-
-## 📄 许可证
-
-MIT License
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request！
-
----
-
-**CICD系统** - 让持续集成部署更简单！ 🚀
+本项目采用MIT许可证，详情请见[LICENSE](LICENSE)文件。
