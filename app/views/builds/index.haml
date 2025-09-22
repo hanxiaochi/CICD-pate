@@ -1,0 +1,21 @@
+%h1 构建列表
+%table.table.table-striped
+  %thead
+    %tr
+      %th ID
+      %th 项目
+      %th 分支
+      %th 提交
+      %th 时间
+  %tbody
+    - @builds.each do |build|
+      %tr
+        %td= build.id
+        %td= build.project.name
+        %td= build.branch
+        %td= build.commit[0..7]
+        %td= build.created_at.strftime("%Y-%m-%d %H:%M")
+
+%hr
+%p
+  %a.btn.btn-primary{ href: "/builds/new" } 新建构建

@@ -1,0 +1,484 @@
+!!!
+%html{:lang => "zh-CN"}
+  %head
+    %meta{:charset => "utf-8"}/
+    %meta{:content => "width=device-width, initial-scale=1", :name => "viewport"}/
+    %title 系统管理 - CICD系统
+    %link{:href => "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css", :rel => "stylesheet"}/
+    %link{:href => "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css", :rel => "stylesheet"}/
+    :css
+      body {
+        font-size: .875rem;
+        background-color: #f6f8fa;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        color: #24292e;
+      }
+
+      .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 100;
+        padding: 56px 0 0;
+        background-color: #ffffff;
+        transition: all 0.3s ease;
+        width: 240px;
+        border-right: 1px solid #e1e4e8;
+      }
+
+      .sidebar.collapsed {
+        width: 60px !important;
+      }
+
+      .sidebar.collapsed .sidebar-text {
+        display: none;
+      }
+
+      .sidebar.collapsed .sidebar-icon {
+        margin-right: 0;
+      }
+
+      .sidebar-heading {
+        font-size: .75rem;
+        text-transform: uppercase;
+        color: #6c757d;
+        padding: 10px 15px;
+        font-weight: 600;
+      }
+
+      .sidebar-link {
+        display: flex;
+        align-items: center;
+        padding: 10px 15px;
+        text-decoration: none;
+        color: #24292e;
+        transition: all 0.2s;
+        border-left: 2px solid transparent;
+        font-size: 14px;
+      }
+
+      .sidebar-link:hover {
+        color: #0969da;
+        background-color: #f6f8fa;
+      }
+
+      .sidebar-link.active {
+        color: #0969da;
+        background-color: #f6f8fa;
+        border-left: 2px solid #0969da;
+        font-weight: 600;
+      }
+
+      .sidebar-icon {
+        margin-right: 10px;
+        width: 20px;
+        text-align: center;
+        color: #586069;
+      }
+
+      .main-content {
+        transition: margin-left 0.3s ease;
+      }
+
+      .toggle-sidebar {
+        position: absolute;
+        top: 12px;
+        right: 10px;
+        z-index: 1000;
+        background: #f6f8fa;
+        border: 1px solid #e1e4e8;
+        color: #586069;
+        border-radius: 4px;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .system-status {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 2em;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-running {
+        background-color: #dcffe4;
+        color: #1a7f37;
+      }
+
+      .status-stopped {
+        background-color: #ffebe9;
+        color: #cf222e;
+      }
+
+      .user-role {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 2em;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .role-admin {
+        background-color: #ddf4ff;
+        color: #0969da;
+      }
+
+      .role-developer {
+        background-color: #dafbe1;
+        color: #1a7f37;
+      }
+
+      .user-status {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 2em;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-active {
+        background-color: #dcffe4;
+        color: #1a7f37;
+      }
+
+      .status-inactive {
+        background-color: #f6f8fa;
+        color: #57606a;
+      }
+
+      .header-bar {
+        background-color: #ffffff;
+        border-bottom: 1px solid #e1e4e8;
+        padding: 16px 0;
+        margin-bottom: 24px;
+      }
+
+      .btn-primary {
+        background-color: #0969da;
+        border-color: #0969da;
+      }
+
+      .btn-primary:hover {
+        background-color: #0759c4;
+        border-color: #0759c4;
+      }
+
+  %body
+    .container-fluid
+      .row
+        %nav#sidebar.sidebar.col-md-3.col-lg-2.d-md-block.sidebar
+          .toggle-sidebar#sidebarToggle
+            %i.bi.bi-list
+          .position-sticky.pt-3
+            %ul.nav.flex-column
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/"}
+                  %i.bi.bi-speedometer2.sidebar-icon
+                  %span.sidebar-text 仪表板
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/projects"}
+                  %i.bi.bi-folder.sidebar-icon
+                  %span.sidebar-text 项目管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/workspaces"}
+                  %i.bi.bi-grid.sidebar-icon
+                  %span.sidebar-text 工作空间
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/builds"}
+                  %i.bi.bi-hammer.sidebar-icon
+                  %span.sidebar-text 构建管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/resources"}
+                  %i.bi.bi-server.sidebar-icon
+                  %span.sidebar-text 资源管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/scripts"}
+                  %i.bi.bi-file-text.sidebar-icon
+                  %span.sidebar-text 脚本管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/plugins"}
+                  %i.bi.bi-plug.sidebar-icon
+                  %span.sidebar-text 插件管理
+              %li.nav-item
+                %a.nav-link.sidebar-link.active{:href => "/system"}
+                  %i.bi.bi-gear.sidebar-icon
+                  %span.sidebar-text 系统管理
+
+        %main.main-content.col-md-9.ms-sm-auto.col-lg-10.px-md-4{:style => "margin-left: 240px;"}
+          .header-bar
+            .container
+              .d-flex.justify-content-between.align-items-center
+                %h1.h4.mb-0 系统管理
+
+          .container
+            %ul.nav.nav-tabs{:role => "tablist"}
+              %li.nav-item{:role => "presentation"}
+                %button.nav-link.active{"data-bs-toggle" => "tab", :type => "button", :role => "tab", :href => "#overview"} 系统概览
+              %li.nav-item{:role => "presentation"}
+                %button.nav-link{"data-bs-toggle" => "tab", :type => "button", :role => "tab", :href => "#users"} 用户管理
+              %li.nav-item{:role => "presentation"}
+                %button.nav-link{"data-bs-toggle" => "tab", :type => "button", :role => "tab", :href => "#config"} 系统配置
+              %li.nav-item{:role => "presentation"}
+                %button.nav-link{"data-bs-toggle" => "tab", :type => "button", :role => "tab", :href => "#logs"} 系统日志
+
+            .tab-content
+              #overview.tab-pane.fade.show.active{:role => "tabpanel"}
+                .row.mt-4
+                  .col-md-3
+                    .card.text-white.bg-primary.h-100
+                      .card-body
+                        %h5.card-title 服务器状态
+                        %p.card-text
+                          %span.system-status.status-running
+                            %i.bi.bi-check-circle-fill.me-1
+                            正常运行
+                  .col-md-3
+                    .card.text-white.bg-success.h-100
+                      .card-body
+                        %h5.card-title 数据库
+                        %p.card-text
+                          %span.system-status.status-running
+                            %i.bi.bi-check-circle-fill.me-1
+                            连接正常
+                  .col-md-3
+                    .card.text-white.bg-info.h-100
+                      .card-body
+                        %h5.card-title 存储空间
+                        %p.card-text 60% 已使用
+                  .col-md-3
+                    .card.text-white.bg-warning.h-100
+                      .card-body
+                        %h5.card-title 内存使用
+                        %p.card-text 45% 已使用
+
+                .row.mt-4
+                  .col-md-6
+                    .card
+                      .card-header
+                        %h5.card-title 系统信息
+                      .card-body
+                        %table.table
+                          %tbody
+                            %tr
+                              %td 操作系统
+                              %td Linux 5.4.0
+                            %tr
+                              %td Ruby版本
+                              %td 3.1.0
+                            %tr
+                              %td 系统架构
+                              %td x86_64
+                            %tr
+                              %td 运行时间
+                              %td 15天 3小时 24分钟
+
+                  .col-md-6
+                    .card
+                      .card-header
+                        %h5.card-title 服务状态
+                      .card-body
+                        %table.table
+                          %tbody
+                            %tr
+                              %td Web服务
+                              %td
+                                %span.system-status.status-running
+                                  %i.bi.bi-check-circle-fill.me-1
+                                  运行中
+                            %tr
+                              %td 数据库服务
+                              %td
+                                %span.system-status.status-running
+                                  %i.bi.bi-check-circle-fill.me-1
+                                  运行中
+                            %tr
+                              %td 调度服务
+                              %td
+                                %span.system-status.status-running
+                                  %i.bi.bi-check-circle-fill.me-1
+                                  运行中
+                            %tr
+                              %td WebSocket服务
+                              %td
+                                %span.system-status.status-running
+                                  %i.bi.bi-check-circle-fill.me-1
+                                  运行中
+
+              #users.tab-pane.fade{:role => "tabpanel"}
+                .card.mt-4
+                  .card-header.d-flex.justify-content-between.align-items-center
+                    %h5.card-title.mb-0 用户管理
+                    %button.btn.btn-sm.btn-primary{"data-bs-target" => "#createUserModal", "data-bs-toggle" => "modal"}
+                      %i.bi.bi-plus-lg.me-1
+                      新建用户
+                  .card-body
+                    .table-responsive
+                      %table.table.table-striped.mb-0
+                        %thead
+                          %tr
+                            %th ID
+                            %th 用户名
+                            %th 邮箱
+                            %th 角色
+                            %th 状态
+                            %th 最后登录
+                            %th 操作
+                        %tbody
+                          %tr
+                            %td 1
+                            %td admin
+                            %td admin@cicd.local
+                            %td
+                              %span.user-role.role-admin 管理员
+                            %td
+                              %span.user-status.status-active 激活
+                            %td 2023-01-20 14:30:22
+                            %td
+                              %a.btn.btn-sm.btn-outline-primary.me-1{:href => "#"}
+                                %i.bi.bi-pencil
+                                编辑
+                              %a.btn.btn-sm.btn-outline-danger{:href => "#"}
+                                %i.bi.bi-power
+                                禁用
+                          %tr
+                            %td 2
+                            %td developer
+                            %td dev@cicd.local
+                            %td
+                              %span.user-role.role-developer 开发者
+                            %td
+                              %span.user-status.status-active 激活
+                            %td 2023-01-19 09:15:45
+                            %td
+                              %a.btn.btn-sm.btn-outline-primary.me-1{:href => "#"}
+                                %i.bi.bi-pencil
+                                编辑
+                              %a.btn.btn-sm.btn-outline-danger{:href => "#"}
+                                %i.bi.bi-power
+                                禁用
+
+              #config.tab-pane.fade{:role => "tabpanel"}
+                .card.mt-4
+                  .card-header
+                    %h5.card-title 系统配置
+                  .card-body
+                    %form
+                      .mb-3
+                        %label.form-label 系统名称
+                        %input.form-control{:type => "text", :value => "CICD系统"}
+                      .mb-3
+                        %label.form-label 系统URL
+                        %input.form-control{:type => "text", :value => "http://localhost:4567"}
+                      .mb-3
+                        %label.form-label 会话超时 (分钟)
+                        %input.form-control{:type => "number", :value => "30"}
+                      .mb-3
+                        %label.form-label 日志级别
+                        %select.form-select
+                          %option INFO
+                          %option{:selected => "selected"} DEBUG
+                          %option WARN
+                          %option ERROR
+                      .mb-3.form-check
+                        %input.form-check-input{:type => "checkbox", :checked => "checked"}
+                        %label.form-check-label 启用邮件通知
+                      %button.btn.btn-primary{:type => "submit"} 保存配置
+
+              #logs.tab-pane.fade{:role => "tabpanel"}
+                .card.mt-4
+                  .card-header
+                    %h5.card-title 系统日志
+                  .card-body
+                    .row.mb-3
+                      .col-md-3
+                        %select.form-select
+                          %option{:selected => "selected"} 全部级别
+                          %option INFO
+                          %option WARN
+                          %option ERROR
+                      .col-md-3
+                        %input.form-control{:type => "date", :value => "2023-01-20"}
+                      .col-md-6
+                        %input.form-control{:type => "text", :placeholder => "搜索日志内容..."}
+                    .table-responsive
+                      %table.table.table-striped.mb-0
+                        %thead
+                          %tr
+                            %th 时间
+                            %th 级别
+                            %th 消息
+                            %th 来源
+                        %tbody
+                          %tr
+                            %td 14:30:22
+                            %td
+                              %span.badge.bg-info INFO
+                            %td 用户 admin 登录成功
+                            %td AuthController
+                          %tr
+                            %td 14:28:15
+                            %td
+                              %span.badge.bg-warning WARN
+                            %td 数据库连接池接近上限
+                            %td DatabaseManager
+                          %tr
+                            %td 14:25:03
+                            %td
+                              %span.badge.bg-success INFO
+                            %td 项目 "示例项目" 构建成功
+                            %td BuildService
+
+    .modal.fade#createUserModal{:tabindex => "-1"}
+      .modal-dialog
+        .modal-content
+          .modal-header
+            %h5.modal-title 新建用户
+            %button.btn-close{"data-bs-dismiss" => "modal", :type => "button"}
+          .modal-body
+            %form
+              .mb-3
+                %label.form-label 用户名
+                %input.form-control{:type => "text", :placeholder => "输入用户名"}
+              .mb-3
+                %label.form-label 邮箱
+                %input.form-control{:type => "email", :placeholder => "输入邮箱"}
+              .mb-3
+                %label.form-label 密码
+                %input.form-control{:type => "password", :placeholder => "输入密码"}
+              .mb-3
+                %label.form-label 确认密码
+                %input.form-control{:type => "password", :placeholder => "确认密码"}
+              .mb-3
+                %label.form-label 角色
+                %select.form-select
+                  %option 开发者
+                  %option 管理员
+          .modal-footer
+            %button.btn.btn-secondary{"data-bs-dismiss" => "modal"} 取消
+            %button.btn.btn-primary 创建用户
+
+    %script{:src => "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"}
+    :javascript
+      document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const mainContent = document.querySelector('.main-content');
+        
+        sidebarToggle.addEventListener('click', function() {
+          sidebar.classList.toggle('collapsed');
+          if (sidebar.classList.contains('collapsed')) {
+            mainContent.style.marginLeft = '60px';
+            sidebarToggle.innerHTML = '<i class="bi bi-list"></i>';
+          } else {
+            mainContent.style.marginLeft = '240px';
+            sidebarToggle.innerHTML = '<i class="bi bi-list"></i>';
+          }
+        });
+      });

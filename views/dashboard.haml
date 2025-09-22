@@ -1,0 +1,494 @@
+!!!
+%html{:lang => "zh-CN"}
+  %head
+    %meta{:charset => "utf-8"}/
+    %meta{:content => "width=device-width, initial-scale=1", :name => "viewport"}/
+    %title 仪表板 - CICD系统
+    %link{:href => "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css", :rel => "stylesheet"}/
+    %link{:href => "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css", :rel => "stylesheet"}/
+    :css
+      body {
+        font-size: .875rem;
+        background-color: #f6f8fa;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        color: #24292e;
+      }
+
+      .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 100;
+        padding: 56px 0 0;
+        background-color: #ffffff;
+        transition: all 0.3s ease;
+        width: 240px;
+        border-right: 1px solid #e1e4e8;
+      }
+
+      .sidebar.collapsed {
+        width: 60px !important;
+      }
+
+      .sidebar.collapsed .sidebar-text {
+        display: none;
+      }
+
+      .sidebar.collapsed .sidebar-icon {
+        margin-right: 0;
+      }
+
+      .sidebar-heading {
+        font-size: .75rem;
+        text-transform: uppercase;
+        color: #6c757d;
+        padding: 10px 15px;
+        font-weight: 600;
+      }
+
+      .sidebar-link {
+        display: flex;
+        align-items: center;
+        padding: 10px 15px;
+        text-decoration: none;
+        color: #24292e;
+        transition: all 0.2s;
+        border-left: 2px solid transparent;
+        font-size: 14px;
+      }
+
+      .sidebar-link:hover {
+        color: #0969da;
+        background-color: #f6f8fa;
+      }
+
+      .sidebar-link.active {
+        color: #0969da;
+        background-color: #f6f8fa;
+        border-left: 2px solid #0969da;
+        font-weight: 600;
+      }
+
+      .sidebar-icon {
+        margin-right: 10px;
+        width: 20px;
+        text-align: center;
+        color: #586069;
+      }
+
+      .main-content {
+        transition: margin-left 0.3s ease;
+      }
+
+      .toggle-sidebar {
+        position: absolute;
+        top: 12px;
+        right: 10px;
+        z-index: 1000;
+        background: #f6f8fa;
+        border: 1px solid #e1e4e8;
+        color: #586069;
+        border-radius: 4px;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .repo-card {
+        border: 1px solid #e1e4e8;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        transition: box-shadow 0.2s;
+        margin-bottom: 16px;
+        background-color: #ffffff;
+      }
+
+      .repo-card:hover {
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .workflow-status {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 2em;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-success {
+        background-color: #dcffe4;
+        color: #1a7f37;
+      }
+
+      .status-failure {
+        background-color: #ffebe9;
+        color: #cf222e;
+      }
+
+      .status-in-progress {
+        background-color: #ddf4ff;
+        color: #0969da;
+      }
+
+      .status-pending {
+        background-color: #f6f8fa;
+        color: #57606a;
+      }
+
+      .commit-message {
+        color: #24292e;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .commit-meta {
+        color: #57606a;
+        font-size: 12px;
+      }
+
+      .branch-name {
+        color: #0969da;
+        background-color: #ddf4ff;
+        padding: 2px 6px;
+        border-radius: 2em;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .repo-name {
+        font-weight: 600;
+        color: #0969da;
+        text-decoration: none;
+      }
+
+      .repo-name:hover {
+        text-decoration: underline;
+      }
+
+      .repo-stats {
+        color: #57606a;
+        font-size: 12px;
+      }
+
+      .repo-description {
+        color: #57606a;
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+
+      .repo-language-color {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 4px;
+      }
+
+      .repo-language-java {
+        background-color: #f1e05a;
+      }
+
+      .repo-language-javascript {
+        background-color: #f1e05a;
+      }
+
+      .repo-language-python {
+        background-color: #3572A5;
+      }
+
+      .repo-language-go {
+        background-color: #00ADD8;
+      }
+
+      .repo-language-php {
+        background-color: #4F5D95;
+      }
+
+      .repo-language-dockerfile {
+        background-color: #384d54;
+      }
+
+      .header-bar {
+        background-color: #ffffff;
+        border-bottom: 1px solid #e1e4e8;
+        padding: 16px 0;
+        margin-bottom: 24px;
+      }
+
+      .stat-card {
+        border: 1px solid #e1e4e8;
+        border-radius: 6px;
+        padding: 16px;
+        background-color: #ffffff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+
+      .stat-number {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #24292e;
+      }
+
+      .stat-label {
+        font-size: 14px;
+        color: #57606a;
+      }
+
+      .activity-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #eaecef;
+      }
+
+      .activity-item:last-child {
+        border-bottom: none;
+      }
+
+      .activity-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        flex-shrink: 0;
+      }
+
+      .icon-build {
+        background-color: #ddf4ff;
+        color: #0969da;
+      }
+
+      .icon-deploy {
+        background-color: #dcffe4;
+        color: #1a7f37;
+      }
+
+      .icon-fail {
+        background-color: #ffebe9;
+        color: #cf222e;
+      }
+
+      .btn-primary {
+        background-color: #0969da;
+        border-color: #0969da;
+      }
+
+      .btn-primary:hover {
+        background-color: #0759c4;
+        border-color: #0759c4;
+      }
+
+  %body
+    .container-fluid
+      .row
+        %nav#sidebar.sidebar.col-md-3.col-lg-2.d-md-block
+          .toggle-sidebar#sidebarToggle
+            %i.bi.bi-list
+          .position-sticky.pt-3
+            %ul.nav.flex-column
+              %li.nav-item
+                %a.nav-link.sidebar-link.active{:href => "/"}
+                  %i.bi.bi-speedometer2.sidebar-icon
+                  %span.sidebar-text 仪表板
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/projects"}
+                  %i.bi.bi-folder.sidebar-icon
+                  %span.sidebar-text 项目管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/workspaces"}
+                  %i.bi.bi-grid.sidebar-icon
+                  %span.sidebar-text 工作空间
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/builds"}
+                  %i.bi.bi-hammer.sidebar-icon
+                  %span.sidebar-text 构建管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/resources"}
+                  %i.bi.bi-server.sidebar-icon
+                  %span.sidebar-text 资源管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/scripts"}
+                  %i.bi.bi-file-text.sidebar-icon
+                  %span.sidebar-text 脚本管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/plugins"}
+                  %i.bi.bi-plug.sidebar-icon
+                  %span.sidebar-text 插件管理
+              %li.nav-item
+                %a.nav-link.sidebar-link{:href => "/system"}
+                  %i.bi.bi-gear.sidebar-icon
+                  %span.sidebar-text 系统管理
+
+        %main.main-content.col-md-9.ms-sm-auto.col-lg-10.px-md-4{:style => "margin-left: 240px;"}
+          .header-bar
+            .container
+              .d-flex.justify-content-between.align-items-center
+                %h1.h4.mb-0 仪表板
+                .d-flex
+                  %button.btn.btn-sm.btn-outline-secondary.me-2
+                    %i.bi.bi-calendar.me-1
+                    最近7天
+                  %button.btn.btn-sm.btn-primary
+                    %i.bi.bi-arrow-repeat.me-1
+                    刷新
+
+          .container
+            .row.mb-4
+              .col-md-3
+                .stat-card
+                  .stat-number 24
+                  .stat-label 项目总数
+              .col-md-3
+                .stat-card
+                  .stat-number 142
+                  .stat-label 构建任务
+              .col-md-3
+                .stat-card
+                  .stat-number 92.5%
+                  .stat-label 成功率
+              .col-md-3
+                .stat-card
+                  .stat-number 8
+                  .stat-label 资源节点
+
+            .row
+              .col-lg-8
+                .card
+                  .card-header.d-flex.justify-content-between.align-items-center
+                    %h5.card-title.mb-0 最近活动
+                    %a.btn.btn-sm.btn-outline-primary{:href => "/builds"} 查看全部
+                  .card-body
+                    .activity-item.d-flex
+                      .activity-icon.icon-build
+                        %i.bi.bi-hammer
+                      .flex-grow-1
+                        %div
+                          %a.repo-name{:href => "#"} 电商系统
+                          %span.ms-2 构建成功
+                        %div.commit-message 更新用户服务依赖
+                        .d-flex.justify-content-between.mt-1
+                          .commit-meta 3分钟前
+                          %span.workflow-status.status-success
+                            %i.bi.bi-check-circle-fill.me-1
+                            成功
+                    .activity-item.d-flex
+                      .activity-icon.icon-fail
+                        %i.bi.bi-x-circle
+                      .flex-grow-1
+                        %div
+                          %a.repo-name{:href => "#"} 内容管理系统
+                          %span.ms-2 构建失败
+                        %div.commit-message 修复文章模块的分页问题
+                        .d-flex.justify-content-between.mt-1
+                          .commit-meta 15分钟前
+                          %span.workflow-status.status-failure
+                            %i.bi.bi-x-circle-fill.me-1
+                            失败
+                    .activity-item.d-flex
+                      .activity-icon.icon-build
+                        %i.bi.bi-arrow-repeat
+                      .flex-grow-1
+                        %div
+                          %a.repo-name{:href => "#"} 数据分析平台
+                          %span.ms-2 构建运行中
+                        %div.commit-message 添加新的数据源连接器
+                        .d-flex.justify-content-between.mt-1
+                          .commit-meta 刚刚
+                          %span.workflow-status.status-in-progress
+                            %i.bi.bi-arrow-repeat.me-1
+                            运行中
+                    .activity-item.d-flex
+                      .activity-icon.icon-deploy
+                        %i.bi.bi-rocket-takeoff
+                      .flex-grow-1
+                        %div
+                          %a.repo-name{:href => "#"} 移动应用
+                          %span.ms-2 部署成功
+                        %div.commit-message 准备v2.1.0版本发布
+                        .d-flex.justify-content-between.mt-1
+                          .commit-meta 1小时前
+                          %span.workflow-status.status-success
+                            %i.bi.bi-check-circle-fill.me-1
+                            成功
+                    .activity-item.d-flex
+                      .activity-icon.icon-build
+                        %i.bi.bi-clock
+                      .flex-grow-1
+                        %div
+                          %a.repo-name{:href => "#"} 后台管理
+                          %span.ms-2 等待构建
+                        %div.commit-message 增强认证机制
+                        .d-flex.justify-content-between.mt-1
+                          .commit-meta 5分钟前
+                          %span.workflow-status.status-pending
+                            %i.bi.bi-clock.me-1
+                            等待中
+
+              .col-lg-4
+                .card
+                  .card-header
+                    %h5.card-title.mb-0 快捷操作
+                  .card-body
+                    %ul.list-group.list-group-flush
+                      %li.list-group-item
+                        %a.text-decoration-none{:href => "/projects/new"}
+                          %i.bi.bi-folder-plus.me-2
+                          创建新项目
+                      %li.list-group-item
+                        %a.text-decoration-none{:href => "/builds/new"}
+                          %i.bi.bi-hammer.me-2
+                          启动新构建
+                      %li.list-group-item
+                        %a.text-decoration-none{:href => "/resources"}
+                          %i.bi.bi-server.me-2
+                          管理资源
+                      %li.list-group-item
+                        %a.text-decoration-none{:href => "/scripts"}
+                          %i.bi.bi-file-text.me-2
+                          添加脚本
+
+                .card.mt-4
+                  .card-header
+                    %h5.card-title.mb-0 系统状态
+                  .card-body
+                    %div.d-flex.justify-content-between.mb-2
+                      %span 数据库
+                      %span.workflow-status.status-success
+                        %i.bi.bi-check-circle-fill.me-1
+                        正常
+                    %div.d-flex.justify-content-between.mb-2
+                      %span Web服务
+                      %span.workflow-status.status-success
+                        %i.bi.bi-check-circle-fill.me-1
+                        正常
+                    %div.d-flex.justify-content-between
+                      %span 调度服务
+                      %span.workflow-status.status-success
+                        %i.bi.bi-check-circle-fill.me-1
+                        正常
+
+    %script{:src => "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"}
+    :javascript
+      document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const mainContent = document.querySelector('.main-content');
+        
+        sidebarToggle.addEventListener('click', function() {
+          sidebar.classList.toggle('collapsed');
+          if (sidebar.classList.contains('collapsed')) {
+            mainContent.style.marginLeft = '60px';
+            sidebarToggle.innerHTML = '<i class="bi bi-list"></i>';
+          } else {
+            mainContent.style.marginLeft = '240px';
+            sidebarToggle.innerHTML = '<i class="bi bi-list"></i>';
+          }
+        });
+      });

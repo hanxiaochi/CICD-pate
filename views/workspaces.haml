@@ -3,7 +3,7 @@
   %head
     %meta{:charset => "utf-8"}/
     %meta{:content => "width=device-width, initial-scale=1", :name => "viewport"}/
-    %title 项目管理 - CICD系统
+    %title 工作空间管理 - CICD系统
     %link{:href => "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css", :rel => "stylesheet"}/
     %link{:href => "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css", :rel => "stylesheet"}/
     :css
@@ -109,7 +109,7 @@
         background-color: #f6f8fa;
       }
 
-      .repo-card {
+      .workspace-card {
         border: 1px solid #e1e4e8;
         border-radius: 6px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -118,62 +118,30 @@
         background-color: #ffffff;
       }
 
-      .repo-card:hover {
+      .workspace-card:hover {
         box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
       }
 
-      .repo-name {
+      .workspace-name {
         font-weight: 600;
         color: #0969da;
         font-size: 20px;
         text-decoration: none;
       }
 
-      .repo-name:hover {
+      .workspace-name:hover {
         text-decoration: underline;
       }
 
-      .repo-description {
+      .workspace-description {
         color: #57606a;
         font-size: 14px;
         margin-bottom: 12px;
       }
 
-      .repo-stats {
+      .workspace-stats {
         color: #57606a;
         font-size: 12px;
-      }
-
-      .repo-language-color {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        margin-right: 4px;
-      }
-
-      .repo-language-java {
-        background-color: #f1e05a;
-      }
-
-      .repo-language-javascript {
-        background-color: #f1e05a;
-      }
-
-      .repo-language-python {
-        background-color: #3572A5;
-      }
-
-      .repo-language-go {
-        background-color: #00ADD8;
-      }
-
-      .repo-language-php {
-        background-color: #4F5D95;
-      }
-
-      .repo-language-dockerfile {
-        background-color: #384d54;
       }
 
       .header-bar {
@@ -182,29 +150,6 @@
         padding: 16px 0;
         margin-bottom: 24px;
         margin-top: 56px;
-      }
-
-      .workflow-status {
-        display: inline-block;
-        padding: 4px 8px;
-        border-radius: 2em;
-        font-size: 12px;
-        font-weight: 500;
-      }
-
-      .status-success {
-        background-color: #dcffe4;
-        color: #1a7f37;
-      }
-
-      .status-failure {
-        background-color: #ffebe9;
-        color: #cf222e;
-      }
-
-      .status-in-progress {
-        background-color: #ddf4ff;
-        color: #0969da;
       }
 
       .btn-primary {
@@ -231,25 +176,21 @@
         box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.2);
       }
 
-      .no-projects {
+      .no-workspaces {
         text-align: center;
         padding: 40px 20px;
         color: #6c757d;
       }
 
-      .no-projects i {
+      .no-workspaces i {
         font-size: 48px;
         margin-bottom: 16px;
         color: #d0d7de;
       }
 
-      .no-projects h3 {
+      .no-workspaces h3 {
         margin-bottom: 12px;
         font-weight: 500;
-      }
-
-      .text-center {
-        text-align: center;
       }
 
   %body
@@ -279,7 +220,7 @@
                   %i.bi.bi-speedometer2.sidebar-icon
                   %span.sidebar-text 仪表板
               %li.nav-item
-                %a.nav-link.sidebar-link.active{:href => "/projects"}
+                %a.nav-link.sidebar-link{:href => "/projects"}
                   %i.bi.bi-folder.sidebar-icon
                   %span.sidebar-text 项目管理
               %li.nav-item
@@ -299,6 +240,10 @@
                   %i.bi.bi-plug.sidebar-icon
                   %span.sidebar-text 插件管理
               %li.nav-item
+                %a.nav-link.sidebar-link.active{:href => "/workspaces"}
+                  %i.bi.bi-archive.sidebar-icon
+                  %span.sidebar-text 工作空间
+              %li.nav-item
                 %a.nav-link.sidebar-link{:href => "/system"}
                   %i.bi.bi-gear.sidebar-icon
                   %span.sidebar-text 系统管理
@@ -307,86 +252,81 @@
           .header-bar
             .container
               .d-flex.justify-content-between.align-items-center
-                %h1.h4.mb-0 项目
-                %a.btn.btn-primary{:href => "/projects/new"}
+                %h1.h4.mb-0 工作空间
+                %button.btn.btn-primary{"data-bs-toggle" => "modal", "data-bs-target" => "#createWorkspaceModal"}
                   %i.bi.bi-plus-lg.me-1
-                  新建项目
+                  新建工作空间
 
           .container
             .row.mb-4
               .col-12
                 .d-flex.justify-content-between.align-items-center.mb-3
-                  %h2.h5.mb-0 所有项目
+                  %h2.h5.mb-0 所有工作空间
                   .d-flex
-                    %input.search-box{:type => "text", :placeholder => "搜索项目...", :id => "searchInput"}
+                    %input.search-box{:type => "text", :placeholder => "搜索工作空间...", :id => "searchInput"}
                     %button.btn.btn-outline-secondary.ms-2{:id => "searchButton"}
                       %i.bi.bi-search
 
             .row
               .col-12
-                - if @projects && !@projects.empty?
-                  - @projects.each do |project|
-                    .repo-card.p-4
+                - if @workspaces && !@workspaces.empty?
+                  - @workspaces.each do |workspace|
+                    .workspace-card.p-4
                       .d-flex.justify-content-between
                         .d-flex.align-items-center
-                          %i.bi.bi-folder-fill.text-warning.me-2{:style => "font-size: 24px;"}
+                          %i.bi.bi-archive-fill.text-primary.me-2{:style => "font-size: 24px;"}
                           %div
-                            %a.repo-name{:href => "/projects/#{project.id}"}= project.name
-                            %div
-                              %span.repo-stats
-                                %i.bi.bi-star.me-1
-                                0
-                              %span.ms-3.repo-stats
-                                %i.bi.bi-git.me-1
-                                = project.branch || 'master'
-                        .workflow-status{:class => "status-#{project.respond_to?(:latest_build) && project.latest_build ? (project.latest_build.status == 'success' ? 'success' : (project.latest_build.status == 'failed' ? 'failure' : 'in-progress')) : 'success'}"}
-                          - if project.respond_to?(:latest_build) && project.latest_build
-                            - if project.latest_build.status == 'success'
-                              %i.bi.bi-check-circle-fill.me-1
-                              最新构建成功
-                            - elsif project.latest_build.status == 'failed'
-                              %i.bi.bi-x-circle-fill.me-1
-                              最新构建失败
-                            - else
-                              %i.bi.bi-arrow-repeat.me-1
-                              构建运行中
-                          - else
-                            %i.bi.bi-check-circle-fill.me-1
-                            无构建记录
+                            %a.workspace-name{:href => "#"}= workspace.name
+                            .mt-1
+                              %span.workspace-stats
+                                %i.bi.bi-person-badge.me-1
+                                所有者: #{workspace.owner_id ? (defined?(User) && User[workspace.owner_id] ? User[workspace.owner_id].username : '未知用户') : '无'}
                         .dropdown
                           %button.btn.btn-sm.btn-outline-secondary.dropdown-toggle{"data-bs-toggle" => "dropdown"}
                             %i.bi.bi-three-dots
                           .dropdown-menu
-                            %a.dropdown-item{:href => "/builds/new?project_id=#{project.id}"}
-                              %i.bi.bi-play-btn.me-2
-                              构建
-                            %a.dropdown-item{:href => "/projects/#{project.id}/edit"}
+                            %a.dropdown-item{:href => "#"}
                               %i.bi.bi-gear.me-2
                               设置
-                            %a.dropdown-item.delete-project{:href => "#", "data-project-id" => project.id}
+                            %a.dropdown-item.delete-workspace{:href => "#", "data-workspace-id" => workspace.id}
                               %i.bi.bi-trash.me-2
                               删除
-                      .repo-description= project.respond_to?(:description) ? (project.description || '暂无描述') : '暂无描述'
+                      .workspace-description= workspace.description || '暂无描述'
                       .d-flex.justify-content-between.align-items-center.mt-3
                         %div
-                          %span.repo-stats
-                            %span.repo-language-color{:class => "repo-language-#{project.respond_to?(:project_type) ? project.project_type : 'java'}"}
-                            = project.respond_to?(:project_type) ? project.project_type.capitalize : 'Java'
-                          %span.ms-3.repo-stats
+                          %span.workspace-stats
                             %i.bi.bi-clock.me-1
-                            更新于
-                            = project.respond_to?(:updated_at) && project.updated_at ? project.updated_at.strftime('%Y-%m-%d %H:%M') : '刚刚'
-                        %a.btn.btn-sm.btn-outline-primary{:href => "/projects/#{project.id}"}
-                          %i.bi.bi-code-slash.me-1
-                          查看详情
+                            创建于 #{workspace.created_at ? workspace.created_at.strftime('%Y-%m-%d %H:%M') : '未知时间'}
+                        %button.btn.btn-sm.btn-outline-primary
+                          %i.bi.bi-box-arrow-in-right.me-1
+                          进入工作空间
                 - else
-                  .no-projects
-                    %i.bi.bi-folder-x
-                    %h3 暂无项目
-                    %p 创建您的第一个项目开始使用
-                    %a.btn.btn-primary{:href => "/projects/new"}
+                  .no-workspaces
+                    %i.bi.bi-archive
+                    %h3 暂无工作空间
+                    %p 创建您的第一个工作空间开始使用
+                    %button.btn.btn-primary{"data-bs-toggle" => "modal", "data-bs-target" => "#createWorkspaceModal"}
                       %i.bi.bi-plus-lg.me-1
-                      新建项目
+                      新建工作空间
+
+    .modal.fade#createWorkspaceModal{:tabindex => "-1"}
+      .modal-dialog
+        .modal-content
+          .modal-header
+            %h5.modal-title 新建工作空间
+            %button.btn-close{"data-bs-dismiss" => "modal", :type => "button"}
+          .modal-body
+            %form{:action => "/workspaces", :method => "post"}
+              .mb-3
+                %label.form-label 工作空间名称 *
+                %input.form-control{:type => "text", :name => "name", :required => "required", :placeholder => "例如: 开发团队工作空间"}
+              .mb-3
+                %label.form-label 描述
+                %textarea.form-control{:name => "description", :rows => "3", :placeholder => "简要描述工作空间用途"}
+              .d-grid
+                %button.btn.btn-primary{:type => "submit"}
+                  %i.bi.bi-plus-lg.me-1
+                  创建工作空间
 
     %script{:src => "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"}
     :javascript
@@ -410,14 +350,14 @@
           }
         });
         
-        // 删除项目确认
-        document.querySelectorAll('.delete-project').forEach(function(button) {
+        // 删除工作空间确认
+        document.querySelectorAll('.delete-workspace').forEach(function(button) {
           button.addEventListener('click', function(e) {
             e.preventDefault();
-            const projectId = this.getAttribute('data-project-id');
-            if (confirm('确定要删除这个项目吗？此操作不可恢复。')) {
+            const workspaceId = this.getAttribute('data-workspace-id');
+            if (confirm('确定要删除这个工作空间吗？此操作不可恢复。')) {
               // 发送删除请求
-              fetch('/projects/' + projectId, {
+              fetch('/workspaces/' + workspaceId, {
                 method: 'DELETE',
                 headers: {
                   'Content-Type': 'application/json',
@@ -431,12 +371,12 @@
                   return response.json();
                 } else {
                   // 如果不是JSON，返回一个成功的默认响应
-                  return { success: true, message: '项目删除成功' };
+                  return { success: true, message: '工作空间删除成功' };
                 }
               })
               .then(data => {
                 if (data.success) {
-                  alert('项目删除成功');
+                  alert('工作空间删除成功');
                   location.reload();
                 } else {
                   alert('删除失败: ' + (data.error || '未知错误'));
@@ -456,13 +396,13 @@
         
         function performSearch() {
           const searchTerm = searchInput.value.toLowerCase();
-          const projectCards = document.querySelectorAll('.repo-card');
+          const workspaceCards = document.querySelectorAll('.workspace-card');
           
-          projectCards.forEach(function(card) {
-            const projectName = card.querySelector('.repo-name').textContent.toLowerCase();
-            const projectDesc = card.querySelector('.repo-description').textContent.toLowerCase();
+          workspaceCards.forEach(function(card) {
+            const workspaceName = card.querySelector('.workspace-name').textContent.toLowerCase();
+            const workspaceDesc = card.querySelector('.workspace-description').textContent.toLowerCase();
             
-            if (projectName.includes(searchTerm) || projectDesc.includes(searchTerm)) {
+            if (workspaceName.includes(searchTerm) || workspaceDesc.includes(searchTerm)) {
               card.style.display = 'block';
             } else {
               card.style.display = 'none';

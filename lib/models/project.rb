@@ -6,13 +6,21 @@ class Project < Sequel::Model(:projects)
   many_to_one :workspace
   one_to_many :builds
   one_to_many :deployments
+  
+  # 明确定义允许的字段
+  set_allowed_columns :name, :repo_url, :branch, :repo_type, :project_type, :environment_vars, :user_id, :workspace_id, :description
 
   def validate
     super
-    validates_presence [:name, :repo_url]
+    validates_presence :name
+    # 允许repo_url为空
     validates_unique :name
-    validates_includes ['git', 'svn'], :repo_type
-    validates_includes ['java', 'nodejs', 'python', 'go', 'php', 'docker'], :project_type
+    if repo_type
+      validates_includes ['git', 'svn'], :repo_type
+    end
+    if project_type
+      validates_includes ['java', 'nodejs', 'python', 'go', 'php', 'docker'], :project_type
+    end
   end
 
   def latest_build

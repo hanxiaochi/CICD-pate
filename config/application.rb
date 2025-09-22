@@ -123,3 +123,10 @@ end
 CONFIG = ApplicationConfig.load_config
 
 puts "=== 配置加载完成 ==="
+
+module YourApp
+  class Application < Rails::Application
+    config.session_store :cookie_store, key: '_your_app_session'
+    config.middleware.use Rack::Session::Encryptor, secret: ENV['SESSION_SECRET'] || 'your-very-long-and-random-secret-key-here'
+  end
+end
