@@ -2,43 +2,67 @@ import { db } from '@/db';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-export async function seedDefaultAdmin() {
-    try {
-        // Check if admin user already exists
-        const existingAdmin = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, 'admin@example.com'))
-            .limit(1);
-
-        if (existingAdmin.length > 0) {
-            console.log('ℹ️ Default admin user already exists, skipping creation');
-            return;
-        }
-
-        // Create default admin user
-        const now = Date.now();
-        const defaultAdmin = {
-            name: '管理员',
+export async function seedUsers() {
+    const sampleUsers = [
+        {
+            name: 'Admin User',
             email: 'admin@example.com',
             role: 'admin',
             scopes: ['projects', 'pipelines', 'deployments', 'control'],
             status: 'active',
-            createdAt: now,
-            updatedAt: now,
-        };
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        },
+        {
+            name: 'Developer User',
+            email: 'developer@example.com',
+            role: 'developer',
+            scopes: ['projects', 'pipelines', 'deployments'],
+            status: 'active',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        },
+        {
+            name: 'Viewer User',
+            email: 'viewer@example.com',
+            role: 'viewer',
+            scopes: ['projects'],
+            status: 'active',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        },
+        {
+            name: 'Inactive Admin',
+            email: 'inactive@example.com',
+            role: 'admin',
+            scopes: ['projects', 'pipelines', 'deployments', 'control'],
+            status: 'disabled',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        }
+    ];
 
-        await db.insert(users).values(defaultAdmin);
+    for (const user of sampleUsers) {
+        const existingUser = await db.select().from(users).where(eq(users.email, user.email)).limit(1);
         
-        console.log('✅ Default admin user created successfully');
-    } catch (error) {
-        console.error('❌ Failed to create default admin user:', error);
-        throw error;
+        if (existingUser.length > 0) {
+            console.log(`ℹ️ User with email ${user.email} already exists, skipping...`);
+        } else {
+            await db.insert(users).values(user);
+            console.log(`✅ Created user: ${user.name} (${user.email}) with role ${user.role}`);
+        }
     }
+    
+    console.log('✅ Users seeder completed successfully');
+}
+
+// Keep backward compatibility
+export async function seedDefaultAdmin() {
+    await seedUsers();
 }
 
 async function main() {
-    await seedDefaultAdmin();
+    await seedUsers();
 }
 
 main().catch((error) => {

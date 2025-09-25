@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { seedDefaultAdmin } from '@/db/seeds/users';
+
+async function seedUsers() {
+    const { seedUsers } = await import('@/db/seeds/users');
+    await seedUsers();
+}
+
+async function seedTargets() {
+    const { seedTargets } = await import('@/db/seeds/targets');
+    await seedTargets();
+}
 
 export async function POST(request: NextRequest) {
   try {
     console.log('Starting database seeding operation...');
     
-    await seedDefaultAdmin();
+    await seedUsers();
+    await seedTargets();
     
     console.log('Database seeding completed successfully');
     
     return NextResponse.json({
       success: true,
-      message: 'Default admin user seeded successfully'
+      message: 'Database seeded successfully with users and targets'
     }, { status: 200 });
     
   } catch (error) {
