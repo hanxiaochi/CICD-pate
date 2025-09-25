@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { StatusBadge } from "@/components/app/status-badge";
 
 export default function Home() {
   return (
@@ -17,7 +18,10 @@ export default function Home() {
         </div>
         <div className="relative mx-auto max-w-6xl px-6 py-16">
           <div className="flex flex-col gap-6">
-            <Badge className="w-fit" variant="secondary">轻量级 • 自托管</Badge>
+            <div className="flex items-center gap-2">
+              <Badge className="w-fit" variant="secondary">轻量级 • 自托管</Badge>
+              <StatusBadge />
+            </div>
             <h1 className="text-3xl sm:text-5xl font-bold tracking-tight">
               轻量级 CI/CD 平台（Rails + SQLite）
             </h1>
@@ -29,6 +33,7 @@ export default function Home() {
               <Link href="/dashboard"><Button>项目总览</Button></Link>
               <Link href="/projects"><Button variant="secondary">项目与仓库</Button></Link>
               <Link href="/deployments"><Button variant="secondary">部署与监控</Button></Link>
+              <Link href="/deployments/history"><Button variant="secondary">发布历史</Button></Link>
               <Link href="/control"><Button variant="secondary">应用控制台</Button></Link>
               <Link href="/users"><Button variant="ghost">用户与权限</Button></Link>
             </div>

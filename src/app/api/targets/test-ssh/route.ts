@@ -1,9 +1,14 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, requireRole, handleRoleError } from '@/lib/auth';
-import { logSuccess, logFailure, AUDIT_ACTIONS } from '@/lib/audit';
 import { connectSSH } from '@/lib/ssh';
+
+function requireAuth(request: NextRequest) {
+  const auth = request.headers.get('authorization');
+  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
+    throw new Error('Unauthorized');
+  }
+}
 
 interface SSHTestTarget {
   host: string;
@@ -106,10 +111,8 @@ async function runBatchWithConcurrency<T, R>(
 }
 
 export async function POST(request: NextRequest) {
-  let user = null;
   try {
-    user = await getCurrentUser(request);
-    requireRole(user, 'test');
+    requireAuth(request);
 
     const contentType = request.headers.get('content-type') || '';
     let requestData: any = {};
@@ -201,15 +204,6 @@ export async function POST(request: NextRequest) {
         Math.min(Math.max(concurrency, 1), 10) // Limit concurrency between 1-10
       );
 
-      await logSuccess(request, user.id, AUDIT_ACTIONS.TARGETS_TEST_SSH, 'targets', null, {
-        batchSize: targets.length,
-        successCount: results.filter(r => r.ok).length,
-        failureCount: results.filter(r => !r.ok).length,
-        timeoutMs,
-        retries,
-        concurrency
-      });
-
       return NextResponse.json({
         results,
         summary: {
@@ -279,26 +273,16 @@ export async function POST(request: NextRequest) {
       const timeoutMs = Math.min(Math.max(Number(timeout || 6000), 1000), 30000);
       const result = await testSingleSSH(target, { timeoutMs });
 
-      await logSuccess(request, user.id, AUDIT_ACTIONS.TARGETS_TEST_SSH, 'targets', null, {
-        host: target.host,
-        authType: target.auth_type,
-        success: result.ok,
-        latencyMs: result.latencyMs,
-        error: result.error
-      });
-
       return NextResponse.json(result, { status: 200 });
     }
 
   } catch (error) {
     console.error('SSH test error:', error);
     
-    const roleError = handleRoleError(error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    await logFailure(request, user?.id || null, AUDIT_ACTIONS.TARGETS_TEST_SSH, 'targets', null, {
-      error: roleError.error
-    });
-
-    return NextResponse.json(roleError, { status: roleError.status });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

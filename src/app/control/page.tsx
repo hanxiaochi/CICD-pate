@@ -10,6 +10,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { apiUrl, withAuth } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ControlPage() {
   const [appName, setAppName] = useState("demo-app");
@@ -21,6 +31,10 @@ export default function ControlPage() {
   const [env, setEnv] = useState(`JAVA_HOME=/usr/lib/jvm/java-17\nSPRING_PROFILES_ACTIVE=prod`);
   const [status, setStatus] = useState<"stopped" | "running" | "unknown">("stopped");
   const [jdk, setJdk] = useState("java17");
+  // 新增：管理方式与脚本路径
+  const [runMode, setRunMode] = useState<"nohup" | "sh">("nohup");
+  const [startScript, setStartScript] = useState("/opt/apps/demo-app/start.sh");
+  const [stopScript, setStopScript] = useState("/opt/apps/demo-app/stop.sh");
   const [loadingStart, setLoadingStart] = useState(false);
   const [loadingStop, setLoadingStop] = useState(false);
   const [currentPid, setCurrentPid] = useState<number | null>(null);
@@ -30,6 +44,8 @@ export default function ControlPage() {
   const [autoScroll, setAutoScroll] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const logBoxRef = useRef<HTMLDivElement | null>(null);
+  const [confirmStopOpen, setConfirmStopOpen] = useState(false);
+  const [confirmRestartOpen, setConfirmRestartOpen] = useState(false);
 
   const nohupCmd = useMemo(() => {
     const envInline = env
@@ -38,8 +54,12 @@ export default function ControlPage() {
       .filter(Boolean)
       .join(" ");
     const javaBin = jdk === "java8" ? "/usr/bin/java" : "/usr/bin/java"; // 示例占位
-    return `cd ${workdir} && ${envInline} nohup ${javaBin} ${javaOpts} -jar ${jarPath} --server.port=${port} >> ${logFile} 2>&1 & echo $!`;
-  }, [env, jdk, javaOpts, jarPath, port, workdir, logFile]);
+    if (runMode === "nohup") {
+      return `cd ${workdir} && ${envInline} nohup ${javaBin} ${javaOpts} -jar ${jarPath} --server.port=${port} >> ${logFile} 2>&1 & echo $!`;
+    }
+    // sh 脚本模式
+    return `cd ${workdir} && ${envInline} sh ${startScript} >> ${logFile} 2>&1 & echo $!`;
+  }, [env, jdk, javaOpts, jarPath, port, workdir, logFile, runMode, startScript]);
 
   const [apps, setApps] = useState([
     { name: "demo-app", pid: 23124, port: 8080, status: "运行中" },
@@ -50,25 +70,40 @@ export default function ControlPage() {
   async function handleStart() {
     setLoadingStart(true);
     try {
+      const commonEnv = env
+        .split("\n")
+        .filter(Boolean)
+        .reduce((acc: Record<string, string>, line) => {
+          const [k, ...rest] = line.split("=");
+          acc[k.trim()] = rest.join("=").trim();
+          return acc;
+        }, {} as Record<string, string>);
+
+      const body =
+        runMode === "nohup"
+          ? {
+              mode: "nohup",
+              target_id: 1,
+              workdir,
+              jar_path: jarPath,
+              java_opts: javaOpts,
+              env: commonEnv,
+            }
+          : {
+              mode: "sh",
+              target_id: 1,
+              workdir,
+              start_script: startScript,
+              log_file: logFile,
+              env: commonEnv,
+            };
+
       const res = await fetch(apiUrl("/api/control/start"), withAuth({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          target_id: 1,
-          workdir,
-          jar_path: jarPath,
-          java_opts: javaOpts,
-          env: env
-            .split("\n")
-            .filter(Boolean)
-            .reduce((acc: Record<string, string>, line) => {
-              const [k, ...rest] = line.split("=");
-              acc[k.trim()] = rest.join("=").trim();
-              return acc;
-            }, {}),
-        }),
+        body: JSON.stringify(body),
       }));
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || "启动失败");
@@ -84,18 +119,23 @@ export default function ControlPage() {
   }
 
   async function handleStop() {
-    if (!currentPid) {
+    if (!currentPid && runMode === "nohup") {
       toast.error("无有效 PID，无法停止");
       return;
     }
     setLoadingStop(true);
     try {
+      const body =
+        runMode === "nohup"
+          ? { pid: currentPid, mode: "nohup" }
+          : { pid: currentPid, mode: "sh", workdir, stop_script: stopScript };
+
       const res = await fetch(apiUrl("/api/control/stop"), withAuth({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ pid: currentPid }),
+        body: JSON.stringify(body),
       }));
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || "停止失败");
@@ -185,7 +225,44 @@ export default function ControlPage() {
               <Input id="appName" value={appName} onChange={(e) => setAppName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="jdk">JDK 版本</Label>
+              <Label htmlFor="runMode">启动方式</Label>
+              <Select value={runMode} onValueChange={(v: "nohup" | "sh") => setRunMode(v)}>
+                <SelectTrigger id="runMode">
+                  <SelectValue placeholder="选择启动方式" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nohup">Java JAR (nohup)</SelectItem>
+                  <SelectItem value="sh">Shell 脚本</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="jar">JAR 路径（仅 nohup 模式）</Label>
+              <Input id="jar" value={jarPath} onChange={(e) => setJarPath(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="workdir">工作目录</Label>
+              <Input id="workdir" value={workdir} onChange={(e) => setWorkdir(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="startScript">启动脚本（仅 Shell 模式）</Label>
+              <Input id="startScript" value={startScript} onChange={(e) => setStartScript(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stopScript">停止脚本（仅 Shell 模式）</Label>
+              <Input id="stopScript" value={stopScript} onChange={(e) => setStopScript(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="jdk">JDK 版本（仅 nohup 模式）</Label>
               <Select value={jdk} onValueChange={setJdk}>
                 <SelectTrigger id="jdk">
                   <SelectValue placeholder="选择 JDK" />
@@ -197,22 +274,15 @@ export default function ControlPage() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="jar">JAR 路径</Label>
-              <Input id="jar" value={jarPath} onChange={(e) => setJarPath(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="workdir">工作目录</Label>
-              <Input id="workdir" value={workdir} onChange={(e) => setWorkdir(e.target.value)} />
+              <Label htmlFor="javaOpts">JVM 参数（仅 nohup 模式）</Label>
+              <Input id="javaOpts" value={javaOpts} onChange={(e) => setJavaOpts(e.target.value)} />
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="port">端口</Label>
+              <Label htmlFor="port">端口（仅 nohup 模式）</Label>
               <Input id="port" value={port} onChange={(e) => setPort(e.target.value)} />
             </div>
             <div className="space-y-2 sm:col-span-2">
@@ -222,26 +292,21 @@ export default function ControlPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="javaOpts">JVM 参数</Label>
-            <Input id="javaOpts" value={javaOpts} onChange={(e) => setJavaOpts(e.target.value)} />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="env">环境变量（每行 KEY=VALUE）</Label>
             <Textarea id="env" rows={4} value={env} onChange={(e) => setEnv(e.target.value)} />
           </div>
 
           <div className="grid gap-3">
-            <Label>生成的 nohup 启动命令（预览）</Label>
+            <Label>生成的启动命令（预览）</Label>
             <Textarea readOnly value={nohupCmd} rows={3} className="font-mono text-xs" />
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={handleStart} disabled={loadingStart}>{loadingStart ? "启动中..." : "启动"}</Button>
-            <Button variant="secondary" onClick={handleStop} disabled={loadingStop}>
+            <Button onClick={handleStart} disabled={loadingStart || status === "running"}>{loadingStart ? "启动中..." : "启动"}</Button>
+            <Button variant="secondary" onClick={() => setConfirmStopOpen(true)} disabled={loadingStop || (!currentPid && runMode === "nohup")}> 
               {loadingStop ? "停止中..." : "停止"}
             </Button>
-            <Button variant="ghost" onClick={handleRestart}>重启</Button>
+            <Button variant="ghost" onClick={() => setConfirmRestartOpen(true)} disabled={loadingStart || loadingStop}>重启</Button>
             <span className="text-sm text-muted-foreground">当前状态：{status === "running" ? "运行中" : status === "stopped" ? "已停止" : "未知"} {currentPid ? `(PID: ${currentPid})` : ""}</span>
           </div>
         </CardContent>
@@ -270,9 +335,9 @@ export default function ControlPage() {
                   <TableCell>{a.port}</TableCell>
                   <TableCell>{a.status}</TableCell>
                   <TableCell className="space-x-2">
-                    <Button size="sm" onClick={handleStart}>启动</Button>
-                    <Button size="sm" variant="secondary" onClick={handleStop}>停止</Button>
-                    <Button size="sm" variant="ghost" onClick={handleRestart}>重启</Button>
+                    <Button size="sm" onClick={handleStart} disabled={loadingStart || status === "running"}>启动</Button>
+                    <Button size="sm" variant="secondary" onClick={() => setConfirmStopOpen(true)} disabled={loadingStop || (!currentPid && runMode === "nohup")}>停止</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmRestartOpen(true)} disabled={loadingStart || loadingStop}>重启</Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -303,6 +368,48 @@ export default function ControlPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 停止确认对话框 */}
+      <AlertDialog open={confirmStopOpen} onOpenChange={setConfirmStopOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认停止应用？</AlertDialogTitle>
+            <AlertDialogDescription>
+              将向远程服务器发送停止指令，可能需要数秒完成。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleStop} disabled={loadingStop}>
+              {loadingStop ? "停止中..." : "确认停止"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 重启确认对话框 */}
+      <AlertDialog open={confirmRestartOpen} onOpenChange={setConfirmRestartOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认重启应用？</AlertDialogTitle>
+            <AlertDialogDescription>
+              将先停止再启动，该过程会短暂中断服务。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                setConfirmRestartOpen(false);
+                await handleRestart();
+              }}
+              disabled={loadingStart || loadingStop}
+            >
+              确认重启
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

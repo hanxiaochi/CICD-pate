@@ -43,21 +43,23 @@ export default function UsersPage() {
     { key: "control", label: "应用控制" },
   ];
 
+  // unified loader
+  async function loadUsers() {
+    try {
+      setIsLoading(true);
+      const res = await fetch(apiUrl("/api/users"), withAuth());
+      const json = await res.json();
+      if (!res.ok || !json?.success) throw new Error(json?.error || "加载失败");
+      setUsers(json.data || []);
+    } catch (e: any) {
+      toast.error(e?.message || "无法加载用户列表");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        setIsLoading(true);
-        const res = await fetch(apiUrl("/api/users"), withAuth());
-        const json = await res.json();
-        if (!res.ok || !json?.success) throw new Error(json?.error || "加载失败");
-        setUsers(json.data || []);
-      } catch (e: any) {
-        toast.error(e?.message || "无法加载用户列表");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
+    loadUsers();
   }, []);
 
   async function toggleScope(userId: number, key: string) {
@@ -220,7 +222,12 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>用户列表与权限范围</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>用户列表与权限范围</CardTitle>
+            <Button variant="secondary" size="sm" onClick={loadUsers} disabled={isLoading}>
+              {isLoading ? "刷新中..." : "刷新"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Filters */}

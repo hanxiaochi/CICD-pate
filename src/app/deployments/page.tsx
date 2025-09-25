@@ -9,16 +9,52 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { apiUrl, withAuth } from "@/lib/api";
+import Link from "next/link";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function DeploymentsPage() {
   const [root, setRoot] = useState("/opt/apps");
   const [targets, setTargets] = useState<any[]>([]);
+  // 新增：系统-项目-成品包级联状态
+  const [systems, setSystems] = useState<Array<{ id: number; name: string }>>([]);
+  const [projList, setProjList] = useState<any[]>([]);
+  const [pkgList, setPkgList] = useState<any[]>([]);
+  const [selSystemId, setSelSystemId] = useState<string>("");
+  const [selProjectId, setSelProjectId] = useState<string>("");
+  const [selPackageId, setSelPackageId] = useState<string>("");
+  const [loadingCascade, setLoadingCascade] = useState(false);
+  const [loadingPkgs, setLoadingPkgs] = useState(false);
   const [targetId, setTargetId] = useState<string>("1");
   const [loadingTargets, setLoadingTargets] = useState(false);
   const [loadingFs, setLoadingFs] = useState(false);
   const [loadingProcs, setLoadingProcs] = useState(false);
+  // 新增：发布进行中状态
+  const [publishing, setPublishing] = useState(false);
+  // 新增：发布步骤与结果
+  const [deploySteps, setDeploySteps] = useState<Array<{ key: string; label: string; ok: boolean }>>([]);
+  const [lastDeploymentId, setLastDeploymentId] = useState<number | null>(null);
+  // 新增：本地缓存 key
+  const LS_KEYS = {
+    system: "deploy.sel.systemId",
+    project: "deploy.sel.projectId",
+    pkg: "deploy.sel.packageId",
+    target: "deploy.sel.targetId",
+  } as const;
+  // 新增：环境筛选
+  const [filterEnv, setFilterEnv] = useState<string>("");
   const [directories, setDirectories] = useState<{ name: string; type: string; updatedAt?: string }[]>([]);
   const [processes, setProcesses] = useState<{ pid: number; name: string; port?: number; started?: string }[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [newTarget, setNewTarget] = useState({
     name: "",
     host: "",
@@ -53,6 +89,72 @@ export default function DeploymentsPage() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchResults, setBatchResults] = useState<Array<{ host: string; ok: boolean; latencyMs?: number; error?: string }>>([]);
 
+  // 新增：加载系统与项目用于级联
+  useEffect(() => {
+    const loadCascade = async () => {
+      setLoadingCascade(true);
+      try {
+        const [resSys, resProj] = await Promise.all([
+          fetch(apiUrl("/api/systems"), withAuth()),
+          fetch(apiUrl("/api/projects"), withAuth()),
+        ]);
+        const sys = await resSys.json();
+        const projs = await resProj.json();
+        setSystems(Array.isArray(sys) ? sys : []);
+        setProjList(Array.isArray(projs) ? projs : []);
+        // 新增：恢复本地缓存的系统/项目
+        const cachedSys = localStorage.getItem(LS_KEYS.system) || "";
+        const cachedProj = localStorage.getItem(LS_KEYS.project) || "";
+        if (cachedSys && (Array.isArray(sys) ? sys : []).some((s: any) => String(s.id) === cachedSys)) {
+          setSelSystemId(cachedSys);
+          if (
+            cachedProj &&
+            (Array.isArray(projs) ? projs : []).some(
+              (p: any) => String(p.id) === cachedProj && String(p.system_id) === cachedSys
+            )
+          ) {
+            setSelProjectId(cachedProj);
+          }
+        }
+      } catch (_e) {
+        toast.error("加载系统/项目失败");
+      } finally {
+        setLoadingCascade(false);
+      }
+    };
+    loadCascade();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 新增：选择项目后加载成品包
+  useEffect(() => {
+    const pid = Number(selProjectId);
+    if (!selProjectId || !Number.isFinite(pid)) {
+      setPkgList([]);
+      setSelPackageId("");
+      return;
+    }
+    const loadPkgs = async () => {
+      setLoadingPkgs(true);
+      try {
+        const res = await fetch(apiUrl(`/api/projects/${pid}/packages`), withAuth());
+        const list = await res.json();
+        setPkgList(Array.isArray(list) ? list : []);
+        // 新增：恢复本地缓存的成品包（需在包列表加载后）
+        const cachedPkg = localStorage.getItem(LS_KEYS.pkg) || "";
+        if (cachedPkg && Array.isArray(list) && list.some((k: any) => String(k.id) === cachedPkg)) {
+          setSelPackageId(cachedPkg);
+        }
+      } catch (_e) {
+        toast.error("加载成品包失败");
+      } finally {
+        setLoadingPkgs(false);
+      }
+    };
+    loadPkgs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selProjectId]);
+
   // load targets (paginated)
   useEffect(() => {
     const loadTargets = async () => {
@@ -65,8 +167,11 @@ export default function DeploymentsPage() {
         // expects { items, total, page, pageSize }
         setTargets(Array.isArray(data.items) ? data.items : []);
         setTotal(data.total || 0);
-        if ((Array.isArray(data.items) && data.items.length > 0)) {
-          setTargetId(String(data.items[0].id));
+        const cachedTarget = localStorage.getItem(LS_KEYS.target) || "";
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          // 优先恢复缓存的目标ID，其次默认选第一项
+          const found = cachedTarget && data.items.some((t: any) => String(t.id) === cachedTarget);
+          setTargetId(found ? String(cachedTarget) : String(data.items[0].id));
         }
       } catch (e) {
         toast.error("加载目标服务器失败");
@@ -75,6 +180,7 @@ export default function DeploymentsPage() {
       }
     };
     loadTargets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, q]);
 
   async function testConnection() {
@@ -245,11 +351,16 @@ export default function DeploymentsPage() {
     }
   };
 
-  const deleteTarget = async (id: number) => {
-    if (!confirm("确定删除该目标服务器？")) return;
-    setDeletingId(id);
+  const deleteTarget = (id: number) => {
+    setPendingDeleteId(id);
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    setDeletingId(pendingDeleteId);
     try {
-      const res = await fetch(apiUrl(`/api/targets/${id}`), { ...withAuth(), method: "DELETE" });
+      const res = await fetch(apiUrl(`/api/targets/${pendingDeleteId}`), { ...withAuth(), method: "DELETE" });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || "删除失败（需要管理员权限）");
       toast.success("已删除");
@@ -259,6 +370,8 @@ export default function DeploymentsPage() {
       toast.error(e?.message || "删除失败");
     } finally {
       setDeletingId(null);
+      setConfirmOpen(false);
+      setPendingDeleteId(null);
     }
   };
 
@@ -302,9 +415,218 @@ export default function DeploymentsPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  // auto refresh fs & processes when switching target
+  useEffect(() => {
+    if (targetId) {
+      refreshFs();
+      refreshProcs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetId]);
+
+  // 新增：将选择持久化到本地
+  useEffect(() => {
+    if (selSystemId) localStorage.setItem(LS_KEYS.system, selSystemId);
+  }, [selSystemId]);
+  useEffect(() => {
+    if (selProjectId) localStorage.setItem(LS_KEYS.project, selProjectId);
+  }, [selProjectId]);
+  useEffect(() => {
+    if (selPackageId) localStorage.setItem(LS_KEYS.pkg, selPackageId);
+  }, [selPackageId]);
+  useEffect(() => {
+    if (targetId) localStorage.setItem(LS_KEYS.target, targetId);
+  }, [targetId]);
+
+  // 新增：根据环境筛选校验当前 targetId
+  useEffect(() => {
+    const list = targets.filter((t) => (filterEnv ? t.env === filterEnv : true));
+    const exists = list.some((t) => String(t.id) === String(targetId));
+    if (!exists && list.length > 0) {
+      setTargetId(String(list[0].id));
+    }
+    // 如果过滤后为空，则清空选中，避免误用
+    if (list.length === 0) {
+      setTargetId("");
+    }
+  }, [filterEnv, targets]);
+
+  // 计算：按环境过滤后的目标列表
+  const filteredTargets = targets.filter((t) => (filterEnv ? t.env === filterEnv : true));
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="text-2xl font-semibold">部署与服务器监控</h1>
+
+      {/* 新增：系统-项目-成品包 选择卡片 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>发布选择（系统 → 项目 → 成品包）</CardTitle>
+            <Link href="/deployments/history" className="text-sm text-muted-foreground hover:underline">查看发布历史</Link>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label>系统</Label>
+              <Select
+                value={selSystemId}
+                onValueChange={(v) => {
+                  setSelSystemId(v);
+                  setSelProjectId("");
+                  setSelPackageId("");
+                  setPkgList([]);
+                }}
+                disabled={loadingCascade}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingCascade ? "加载中..." : "请选择系统"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {systems.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>项目</Label>
+              <Select
+                value={selProjectId}
+                onValueChange={(v) => {
+                  setSelProjectId(v);
+                  setSelPackageId("");
+                }}
+                disabled={!selSystemId || loadingCascade}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={!selSystemId ? "先选择系统" : "请选择项目"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {projList
+                    .filter((p) => p.system_id === Number(selSystemId))
+                    .map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>成品包</Label>
+              <Select
+                value={selPackageId}
+                onValueChange={setSelPackageId}
+                disabled={!selProjectId || loadingPkgs}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={!selProjectId ? "先选择项目" : loadingPkgs ? "加载中..." : "请选择成品包"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {pkgList.map((pkg: any) => (
+                    <SelectItem key={pkg.id} value={String(pkg.id)}>
+                      {pkg.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={async () => {
+                if (!selSystemId || !selProjectId || !selPackageId) return;
+                if (!targetId) { toast.error("请选择目标服务器"); return; }
+                try {
+                  // 发布前 SSH 预检（使用已存凭据，通过目标ID在服务端校验）
+                  const pre = await fetch(
+                    apiUrl("/api/targets/test-connection"),
+                    { ...withAuth(), method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: Number(targetId), timeoutMs: 6000 }) }
+                  );
+                  const pj = await pre.json();
+                  if (!pre.ok || !pj?.ok) throw new Error(pj?.error || "SSH 预检失败");
+                  if (typeof pj?.latencyMs === "number") {
+                    toast.success(`SSH 预检通过，用时 ${pj.latencyMs}ms`);
+                  } else {
+                    toast.success("SSH 预检通过");
+                  }
+                } catch (e: any) {
+                  toast.error(e?.message || "SSH 预检失败");
+                  return;
+                }
+
+                setPublishing(true);
+                setDeploySteps([]);
+                try {
+                  const init = withAuth();
+                  const payload = {
+                    systemId: Number(selSystemId) || null,
+                    projectId: Number(selProjectId),
+                    packageId: Number(selPackageId),
+                    targetId: Number(targetId),
+                  };
+                  const res = await fetch(
+                    apiUrl("/api/deployments"),
+                    { ...init, method: "POST", headers: { "Content-Type": "application/json", ...(init as any).headers }, body: JSON.stringify(payload) }
+                  );
+                  const j = await res.json();
+                  if (!res.ok || !j?.ok) throw new Error(j?.error || "发布失败");
+                  setDeploySteps(Array.isArray(j.steps) ? j.steps : []);
+                  setLastDeploymentId(j.deploymentId ?? null);
+                  const sys = systems.find((s) => String(s.id) === selSystemId)?.name || "";
+                  const proj = projList.find((p) => String(p.id) === selProjectId)?.name || "";
+                  const pkg = pkgList.find((k: any) => String(k.id) === selPackageId)?.name || "";
+                  toast.success(`发布完成（ID: ${j.deploymentId}）：${sys} / ${proj} / ${pkg}`);
+                  // 发布后自动刷新 进程 与 目录
+                  await refreshProcs();
+                  await refreshFs();
+                } catch (e: any) {
+                  toast.error(e?.message || "发布失败");
+                } finally {
+                  setPublishing(false);
+                }
+              }}
+              disabled={!selSystemId || !selProjectId || !selPackageId || !targetId || publishing}
+            >
+              {publishing ? "发布中..." : "继续发布"}
+            </Button>
+          </div>
+
+          {/* 新增：发布进度与步骤日志 */}
+          {publishing || deploySteps.length > 0 ? (
+            <div className="mt-2 border-t pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-muted-foreground">
+                  发布{publishing ? "进行中" : "完成"}{lastDeploymentId ? ` · ID #${lastDeploymentId}` : ""}
+                </div>
+                <Link href="/deployments/history" className="text-sm hover:underline">查看历史</Link>
+              </div>
+              <ul className="space-y-2">
+                {(deploySteps.length ? deploySteps : [
+                  { key: "validate", label: "校验参数", ok: true },
+                  { key: "connect", label: `连接目标服务器 #${targetId}` , ok: true },
+                  { key: "upload", label: `上传成品包 ${selPackageId}`, ok: true },
+                  { key: "deploy", label: `部署项目 ${selProjectId} 到目标 ${targetId}`, ok: true },
+                  { key: "verify", label: "部署验证", ok: true },
+                ]).map((s) => (
+                  <li key={s.key} className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${s.ok ? "bg-emerald-500" : "bg-destructive"}`} />
+                    <span className="text-sm">{s.label}</span>
+                    <span className={`ml-auto text-xs ${s.ok ? "text-emerald-600" : "text-destructive"}`}>{s.ok ? "OK" : "FAILED"}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -511,6 +833,21 @@ export default function DeploymentsPage() {
               <Label htmlFor="search">搜索</Label>
               <Input id="search" placeholder="按名称或主机搜索" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
             </div>
+            {/* 新增：环境筛选 */}
+            <div className="space-y-2 w-full sm:w-40">
+              <Label htmlFor="env_filter">环境筛选</Label>
+              <Select value={filterEnv || "__all__"} onValueChange={(v) => setFilterEnv(v === "__all__" ? "" : v)}>
+                <SelectTrigger id="env_filter">
+                  <SelectValue placeholder="全部" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">全部</SelectItem>
+                  <SelectItem value="dev">dev</SelectItem>
+                  <SelectItem value="staging">staging</SelectItem>
+                  <SelectItem value="prod">prod</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end gap-2">
               <Button variant="secondary" onClick={() => setPage(1)} disabled={loadingTargets}>查询</Button>
               <div className="flex items-center gap-2">
@@ -534,7 +871,7 @@ export default function DeploymentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {targets.map((t) => (
+              {filteredTargets.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell>{t.host}</TableCell>
@@ -641,7 +978,7 @@ export default function DeploymentsPage() {
                   <SelectValue placeholder="选择服务器" />
                 </SelectTrigger>
                 <SelectContent>
-                  {targets.map((t) => (
+                  {filteredTargets.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
                       {t.name} ({t.host})
                     </SelectItem>
@@ -711,6 +1048,24 @@ export default function DeploymentsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除该目标服务器？</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后将无法恢复，相关目录与进程配置不会自动清理，请谨慎操作。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} disabled={deletingId !== null}>
+              {deletingId !== null ? "删除中..." : "确认删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

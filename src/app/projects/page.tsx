@@ -28,22 +28,49 @@ export default function ProjectsPage() {
   const [testing, setTesting] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
+  const [systems, setSystems] = useState<Array<{ id: number; name: string }>>([]);
+  const [systemId, setSystemId] = useState<string>("none");
+  const [creatingSystem, setCreatingSystem] = useState(false);
+  const [newSystemName, setNewSystemName] = useState("");
 
   useEffect(() => {
     const load = async () => {
       setLoadingList(true);
       try {
-        const res = await fetch(apiUrl("/api/projects"), withAuth());
-        const data = await res.json();
+        const [resP, resS] = await Promise.all([
+          fetch(apiUrl("/api/projects"), withAuth()),
+          fetch(apiUrl("/api/systems"), withAuth()),
+        ]);
+        const data = await resP.json();
         setProjects(Array.isArray(data) ? data : []);
+        const sys = await resS.json();
+        setSystems(Array.isArray(sys) ? sys : []);
       } catch (e) {
-        toast.error("加载项目失败");
+        toast.error("加载项目或系统失败");
       } finally {
         setLoadingList(false);
       }
     };
     load();
   }, []);
+
+  async function refreshList() {
+    setLoadingList(true);
+    try {
+      const [resP, resS] = await Promise.all([
+        fetch(apiUrl("/api/projects"), withAuth()),
+        fetch(apiUrl("/api/systems"), withAuth()),
+      ]);
+      const data = await resP.json();
+      setProjects(Array.isArray(data) ? data : []);
+      const sys = await resS.json();
+      setSystems(Array.isArray(sys) ? sys : []);
+    } catch (e) {
+      toast.error("刷新失败");
+    } finally {
+      setLoadingList(false);
+    }
+  }
 
   async function handleTestConnection() {
     if (!repoUrl) {
@@ -88,6 +115,7 @@ export default function ProjectsPage() {
           branch,
           credentials_json: username || password ? { username, password } : undefined,
           pipeline,
+          system_id: systemId && systemId !== "none" ? Number(systemId) : undefined,
         }),
       }));
       if (!res.ok) {
@@ -99,6 +127,11 @@ export default function ProjectsPage() {
       setProjects((prev) => [item, ...prev]);
       setName("");
       setRepoUrl("");
+      setBranch("");
+      setUsername("");
+      setPassword("");
+      setPipeline("");
+      setSystemId("none");
     } catch (e: any) {
       toast.error(e?.message || "保存失败");
     } finally {
@@ -106,9 +139,64 @@ export default function ProjectsPage() {
     }
   }
 
+  async function handleCreateSystem() {
+    if (!newSystemName.trim()) {
+      toast.error("请输入系统名称");
+      return;
+    }
+    setCreatingSystem(true);
+    try {
+      const res = await fetch(apiUrl("/api/systems"), withAuth({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newSystemName.trim() }),
+      }));
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || "创建失败");
+      setSystems((s) => [j, ...s]);
+      setNewSystemName("");
+      toast.success("已创建系统");
+    } catch (e: any) {
+      toast.error(e?.message || "创建失败");
+    } finally {
+      setCreatingSystem(false);
+    }
+  }
+
+  async function handleAssignSystem(projectId: number, sid: string) {
+    try {
+      const res = await fetch(apiUrl("/api/projects/assign"), withAuth({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: projectId, system_id: sid && sid !== "none" ? Number(sid) : null }),
+      }));
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || "分配失败");
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, system_id: j.project.system_id } : p)));
+      toast.success("已更新所属系统");
+    } catch (e: any) {
+      toast.error(e?.message || "分配失败");
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="text-2xl font-semibold">项目与仓库配置</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>新建系统</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-[1fr_auto] items-end">
+          <div className="space-y-2">
+            <Label htmlFor="sysName">系统名称</Label>
+            <Input id="sysName" placeholder="例如：A系统" value={newSystemName} onChange={(e) => setNewSystemName(e.target.value)} />
+          </div>
+          <Button onClick={handleCreateSystem} disabled={creatingSystem}>
+            {creatingSystem ? "创建中..." : "创建系统"}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -136,6 +224,23 @@ export default function ProjectsPage() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
+              <Label htmlFor="system">所属系统（可选）</Label>
+              <Select value={systemId} onValueChange={setSystemId}>
+                <SelectTrigger id="system">
+                  <SelectValue placeholder="未分配" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">未分配</SelectItem>
+                  {systems.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
               <Label htmlFor="repoUrl">仓库地址</Label>
               <Input id="repoUrl" placeholder="https://github.com/org/repo.git 或 svn://..." value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} />
             </div>
@@ -152,7 +257,7 @@ export default function ProjectsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">密码/Token（可选）</Label>
-              <Input id="password" type="password" placeholder="仅私有仓库需要" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Input id="password" type="password" autoComplete="off" placeholder="仅私有仓库需要" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
           </div>
 
@@ -162,10 +267,10 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={handleTestConnection} disabled={testing}>
+            <Button variant="secondary" onClick={handleTestConnection} disabled={testing || !repoUrl}>
               {testing ? "测试中..." : "测试连接"}
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleSave} disabled={saving || !name || !repoUrl}>
               {saving ? "保存中..." : "保存项目"}
             </Button>
           </div>
@@ -173,8 +278,13 @@ export default function ProjectsPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>已有项目</CardTitle>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={refreshList} disabled={loadingList}>
+              {loadingList ? "刷新中..." : "刷新"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           {loadingList ? (
@@ -184,9 +294,25 @@ export default function ProjectsPage() {
           ) : (
             <ul className="space-y-2 text-foreground">
               {projects.map((p) => (
-                <li key={p.id} className="flex items-center justify-between border rounded-md px-3 py-2">
-                  <span className="font-medium">{p.name}</span>
-                  <span className="text-xs text-muted-foreground">{p.repo_type} · {p.branch}</span>
+                <li key={p.id} className="flex items-center justify-between border rounded-md px-3 py-2 gap-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">{p.name}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{p.repo_type} · {p.branch}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground hidden sm:inline">系统</span>
+                    <Select value={p.system_id ? String(p.system_id) : "none"} onValueChange={(v) => handleAssignSystem(p.id, v)}>
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="未分配" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">未分配</SelectItem>
+                        {systems.map((s) => (
+                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </li>
               ))}
             </ul>

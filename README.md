@@ -1,176 +1,114 @@
-# 轻量级 CI/CD 平台（Next.js 15 + Shadcn/UI）
+# 轻量化 CI/CD 与远程应用控制平台
 
-一个用于演示与验证的前端与 Mock API 实现，覆盖以下核心能力：
-- 拉取 Git / SVN 项目，配置构建流水线（演示）
-- 部署管理：浏览服务器目录、查看应用进程（演示）
-- 应用控制台：基于 nohup 的 Java 启动/停止/重启（演示）
-- 用户与权限界面（演示）
+本项目是基于 Next.js 15（React 19）的全栈应用，提供从项目管理、构建发布、到远程服务器上的应用启动/停止/重启与日志查看的一体化能力。
 
-本项目可单独部署用于前端演示；当你准备好真实后端（Ruby on Rails + SQLite）后，只需保持相同的 API 契约并切换到 Rails 服务即可。
+- 技术栈：Next.js 15 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
+- 后端路由：使用 Next.js 内置 API（app/api/*）
+- 远程控制：通过 SSH 在目标机执行 nohup/shell 脚本并读取日志流
+- 说明文档：完整 SSME 软件规格文档见 docs/SSME.md
 
----
-
-## 技术栈
-- 前端：Next.js 15（App Router）+ TypeScript
-- UI：shadcn/ui + Tailwind CSS v4
-- 图标：lucide-react
-- Mock API：Next.js API Routes（可替换为 Rails）
-
----
-
-## 目录结构（关键）
-```
-src/
-  app/
-    page.tsx                 # 首页
-    dashboard/               # 项目总览
-    projects/                # 项目与仓库（Git/SVN 配置、流水线）
-    deployments/             # 部署与监控（目录/进程）
-    control/                 # 应用控制台（nohup 启停/重启、日志）
-    users/                   # 用户与权限（演示）
-    api/                     # Mock API（可替换为 Rails）
-```
-
----
+> 注意：本仓库包含演示用的 Rails 样例目录（backend/rails），但实际运行环境为 Next.js。请以本文档为准。
 
 ## 环境要求
-- Node.js 18+（建议 20+）
-- npm / pnpm / bun 任一包管理器
+- Node.js >= 20（建议 20.x 或 22.x LTS）
+- npm >= 10（项目使用 npm 脚本）
+- 可选：Docker（用于容器化部署）
 
-可选环境变量（用于对接 Rails 或外部 API 网关）：
-- NEXT_PUBLIC_API_BASE=http://localhost:3000
-  - 留空或不设：使用内置的 Mock API（src/app/api/*）
-  - 指向你的 Rails 服务后：前端会请求 Rails 的同名接口
+## 快速开始（本地开发）
+1. 安装依赖
+   ```bash
+   npm install
+   ```
+2. 启动开发服务
+   ```bash
+   npm run dev
+   # 默认 http://localhost:3000
+   ```
+3. 构建与生产启动
+   ```bash
+   npm run build
+   npm start
+   ```
 
----
+## 常用脚本
+- `npm run dev`：本地开发（Turbopack）
+- `npm run build`：构建生产产物
+- `npm start`：启动构建后的服务
+- `npm run lint`：代码检查
 
-## 本地运行（开发）
+## 目录结构（节选）
 ```
-npm install
-npm run dev
-# 打开 http://localhost:3000
-```
-
-演示登录：访问 /login，任意邮箱/密码可通过（仅演示用途，无持久化）。
-
----
-
-## 生产构建与启动
-```
-npm run build
-npm run start
-# 默认端口 3000
-```
-
-常见部署方式：
-- Node 进程 + 反向代理（Nginx/Caddy）
-- Docker（见下文）
-- Vercel（仅前端 + 静态/边缘函数；若使用 Rails 后端，请将 API 指向你的 Rails 域名）
-
----
-
-## Docker 示例
-Dockerfile（示例）：
-```
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "run", "start"]
-```
-构建与运行：
-```
-docker build -t cicd-ui .
-docker run -p 3000:3000 --env NEXT_PUBLIC_API_BASE=http://your-rails-host cicd-ui
+root
+├─ src/
+│  ├─ app/                 # App Router 与页面
+│  │  ├─ api/              # 内置 API 路由（控制/部署/目标机等）
+│  │  ├─ control/          # 应用控制台（/control）
+│  │  ├─ deployments/      # 发布历史与详情
+│  │  ├─ projects/         # 项目/仓库配置
+│  │  └─ login, users      # 登录与用户
+│  ├─ components/          # 复用组件（含 shadcn/ui）
+│  ├─ db/                  # 数据层（Drizzle 预置）
+│  ├─ lib/, hooks/         # 工具与 hooks
+├─ docs/                   # 文档（含 SSME）
+├─ deploy/                 # 部署样例（systemd 等）
+└─ backend/rails           # 对照用 Rails 样例（非运行依赖）
 ```
 
----
+## 功能概览
+- 项目与目标机管理：配置仓库、分配目标机、连通性测试
+- 发布管理：发布历史/详情、回滚（/app/api/deployments/*）
+- 应用控制：
+  - 启动（nohup/java 或 shell 脚本）
+  - 停止（PID 或 stop.sh）
+  - 重启（停-启串行）
+  - 实时日志流（ReadableStream）
+- UI 页面：/control 提供参数表单、状态反馈、实时日志查看
 
-## 路由一览
-- /dashboard 项目总览
-- /projects 项目与仓库（Git/SVN 配置、构建流水线）
-- /deployments 部署与监控（目录浏览、进程查看）
-- /control 应用控制台（nohup 启停/重启、日志）
-- /users 用户与权限（演示）
-- /login 演示登录
+接口约定（节选）：
+- POST `/api/control/start`
+  - nohup: `{ mode: "nohup", target_id, workdir, jar_path, java_opts, env }`
+  - sh: `{ mode: "sh", target_id, workdir, start_script, log_file, env }`
+- POST `/api/control/stop`
+  - nohup: `{ mode: "nohup", pid }`
+  - sh: `{ mode: "sh", workdir, stop_script, pid? }`
+- GET `/api/control/logs?path=<log_file>`
 
----
+## 环境变量
+- 默认本地开发无需额外环境变量。
+- 若集成外部服务（如数据库、支付、第三方 API），请在 .env 中按需要添加对应变量。
+- API 鉴权：前端请求通过封装的 withAuth 读取本地存储的 Bearer Token 并附加到请求头（如有登录流程时）。
 
-## Mock API（内置，支持 UI 演示）
-这些路由在 Next.js 中已实现，仅用于演示与前端验证：
+## 开发注意事项
+- 仅使用 Tailwind CSS 进行样式编写（禁用 styled-jsx）。
+- 页面保持为 Server Components；交互放入 Client Components（文件首行 `"use client"`）。
+- 客户端组件不要调用服务端专用 API（cookies/headers/redirect/notFound）。
+- UI 中不要使用浏览器原生 alert/confirm/prompt，改用 shadcn/ui 的对话框与 sonner 通知。
 
-Projects
-- GET /api/projects → 列表
-- POST /api/projects → 创建
-  - Body: { name, repo_type, repo_url, branch?, credentials_json?, pipeline? }
-- POST /api/projects/test-connection → 测试仓库连通性
-  - Body: { repo_url }
+## 代码行数统计
+- 估算当前代码规模：约 7,000 – 10,000 行（不含依赖）。
+- 可复现统计命令：
+  - Bash（macOS/Linux）
+    ```bash
+    find src backend docs deploy -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.md" -o -name "*.mjs" -o -name "*.json" -o -name "*.sh" -o -name "*.yml" -o -name "*.yaml" \) \
+      -not -path "**/node_modules/**" -not -path "**/.next/**" \
+      -exec wc -l {} + | tail -n 1
+    ```
+  - PowerShell（Windows）
+    ```powershell
+    Get-ChildItem src,backend,docs,deploy -Recurse -Include *.ts,*.tsx,*.md,*.mjs,*.json,*.sh,*.yml,*.yaml | \
+      Where-Object { $_.FullName -notmatch "node_modules|\.next" } | \
+      Get-Content | Measure-Object -Line
+    ```
 
-Targets
-- GET /api/targets → 服务器目标列表（演示）
-- GET /api/targets/[id]/fs?path=/opt/apps → 目录浏览
-- GET /api/targets/[id]/processes → 进程列表
+## 部署建议（可选）
+- 以 Node 20+ 的环境运行 `npm run build && npm start`。
+- 若需常驻进程与重启，可结合 systemd/pm2；样例见 deploy/ 目录。
+- 容器化：可基于根目录 Dockerfile 自行构建镜像并运行。
 
-Control
-- POST /api/control/start → 启动应用（返回 pid/log_path，演示）
-  - Body: { target_id, workdir, jar_path, java_opts?, env? }
-- POST /api/control/stop → 停止应用（演示）
-  - Body: { pid }
-- GET /api/control/logs?path=/var/log/app.log → 文本流日志（演示）
-
-说明：以上全部为内存 Mock，服务重启后数据清空。
-
----
-
-## 接入真实后端（Ruby on Rails + SQLite）
-当你准备接入 Rails 后端，请在 Rails 中暴露相同的 REST 契约：
-
-Projects
-- GET /api/projects
-- POST /api/projects
-- POST /api/projects/test-connection
-  - 控制器建议：使用 `git ls-remote` 或 `svn info` 验证连通性
-
-Targets
-- GET /api/targets
-- GET /api/targets/:id/fs?path=...  → 返回 [{ name, type:"file"|"dir", size, mtime }]
-- GET /api/targets/:id/processes     → 返回 [{ pid, name, cpu, mem, started_at }]
-
-Control
-- POST /api/control/start → 生成 nohup 命令并启动，返回 { pid, log_path }
-- POST /api/control/stop  → 安全终止进程，返回 { ok: true }
-- GET  /api/control/logs?path=... → 持续文本流（建议 ActionController::Live 或 Rack hijack）
-
-前端切换步骤：
-1) 部署 Rails 并实现上述接口（JSON 响应字段与示例保持一致）
-2) 在前端设置环境变量：`NEXT_PUBLIC_API_BASE=https://api.yourdomain.com`
-3) 确认 CORS/网关已放行前端域名
-4) 验证各页面：
-   - /projects 创建/测试连通性
-   - /deployments 目录与进程
-   - /control 启动/停止与日志流
-5) 稳定后可删除本仓库中的 `src/app/api/*` Mock 路由
+## 文档与规范
+- 完整软件规格与维护说明（SSME）：`docs/SSME.md`
+- 代码风格：ESLint + TypeScript；UI 组件遵循 shadcn/ui 约定
+- 可访问性与主题：内置深/浅色，使用 Tailwind 设计令牌
 
 ---
-
-## 生产运维建议
-- 身份与权限：请在 Rails 中实现用户、角色（管理员/开发者/访客）、资源（项目/流水线/部署/控制）的读/写/执行授权
-- 敏感信息：仓库凭证、部署密钥等仅保存在服务端，前端不回显
-- 审计与日志：记录启停、部署、配置变更
-- 稳定性：nohup 进程管理、PID 持久化、异常恢复
-- 安全：所有变更类接口需鉴权（POST/PUT/DELETE），并开启 CSRF/CORS 防护
-
----
-
-## 常见问题
-- 首次运行空白？请确认已执行 `npm install`，且 Node 版本满足要求
-- 日志流没有输出？Mock 路由会定时返回演示内容；接入 Rails 后请确认服务端日志路径与权限
-- 切到 Rails 后 404？确认 `NEXT_PUBLIC_API_BASE` 指向正确，且接口路径与本文档一致
-
----
-
-## 许可证
-未附带开源许可证。若需对外开源，请添加合适的 LICENSE 文件。
+如需对接真实数据库、完善权限与审计、或新增功能，请参考 docs/SSME.md 的"维护与变更建议"。

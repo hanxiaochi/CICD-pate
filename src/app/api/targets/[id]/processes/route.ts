@@ -1,20 +1,25 @@
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { targets } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { getCurrentUser, requireRole, handleRoleError } from '@/lib/auth';
-import { logSuccess, logFailure, AUDIT_ACTIONS } from '@/lib/audit';
-import { decryptSecret } from '@/lib/crypto';
+import { decryptCredential } from '@/lib/encryption';
 import { connectSSH, listProcesses } from '@/lib/ssh';
+
+function requireAuth(request: NextRequest) {
+  const auth = request.headers.get('authorization');
+  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
+    throw new Error('Unauthorized');
+  }
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  let user = null;
   try {
-    user = await getCurrentUser(request);
-    requireRole(user, 'read');
+    requireAuth(request);
 
     const { id } = params;
     const { searchParams } = new URL(request.url);
@@ -33,11 +38,6 @@ export async function GET(
       .limit(1);
 
     if (targetResult.length === 0) {
-      await logFailure(request, user.id, AUDIT_ACTIONS.TARGETS_PROCESSES, 'targets', parseInt(id), {
-        error: 'Target not found',
-        filter
-      });
-
       return NextResponse.json({ error: 'Target not found' }, { status: 404 });
     }
 
@@ -54,30 +54,25 @@ export async function GET(
     // Decrypt and set credentials based on auth type
     try {
       if (target.authType === 'password') {
-        if (!target.password) {
+        if (!target.hasPassword || !target.passwordEncrypted) {
           return NextResponse.json({ 
             error: 'No password configured for this target' 
           }, { status: 400 });
         }
-        sshConfig.password = decryptSecret(target.password);
+        sshConfig.password = decryptCredential(target.passwordEncrypted);
       } else if (target.authType === 'key') {
-        if (!target.privateKey) {
+        if (!target.hasPrivateKey || !target.privateKeyEncrypted) {
           return NextResponse.json({ 
             error: 'No private key configured for this target' 
           }, { status: 400 });
         }
-        sshConfig.privateKey = decryptSecret(target.privateKey);
+        sshConfig.privateKey = decryptCredential(target.privateKeyEncrypted);
         
-        if (target.passphrase) {
-          sshConfig.passphrase = decryptSecret(target.passphrase);
+        if (target.passphraseEncrypted) {
+          sshConfig.passphrase = decryptCredential(target.passphraseEncrypted);
         }
       }
     } catch (decryptError) {
-      await logFailure(request, user.id, AUDIT_ACTIONS.TARGETS_PROCESSES, 'targets', parseInt(id), {
-        error: 'Failed to decrypt credentials',
-        filter
-      });
-
       return NextResponse.json({ 
         error: 'Failed to decrypt target credentials' 
       }, { status: 500 });
@@ -91,22 +86,12 @@ export async function GET(
       
       client.end();
 
-      await logSuccess(request, user.id, AUDIT_ACTIONS.TARGETS_PROCESSES, 'targets', parseInt(id), {
-        filter,
-        processCount: processes.length
-      });
-
       return NextResponse.json(processes);
 
     } catch (sshError) {
       if (client) {
         client.end();
       }
-
-      await logFailure(request, user.id, AUDIT_ACTIONS.TARGETS_PROCESSES, 'targets', parseInt(id), {
-        error: `SSH operation failed: ${sshError}`,
-        filter
-      });
 
       return NextResponse.json({ 
         error: `SSH operation failed: ${sshError instanceof Error ? sshError.message : String(sshError)}` 
@@ -116,14 +101,10 @@ export async function GET(
   } catch (error) {
     console.error('GET /api/targets/[id]/processes error:', error);
     
-    const roleError = handleRoleError(error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    await logFailure(request, user?.id || null, AUDIT_ACTIONS.TARGETS_PROCESSES, 'targets', 
-      params.id ? parseInt(params.id) : null, {
-        error: roleError.error,
-        filter: new URL(request.url).searchParams.get('filter')
-      });
-
-    return NextResponse.json(roleError, { status: roleError.status });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,13 +1,16 @@
+export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { targets } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { getCurrentUser, requireRole, handleRoleError } from '@/lib/auth';
-import { logSuccess, logFailure, AUDIT_ACTIONS } from '@/lib/audit';
-import { encryptSecret, decryptSecret, isEncrypted } from '@/lib/crypto';
+import { encryptCredential } from '@/lib/encryption';
 
-const VALID_AUTH_TYPES = ['password', 'key'] as const;
-type AuthType = typeof VALID_AUTH_TYPES[number];
+function requireAuth(request: NextRequest) {
+  const auth = request.headers.get('authorization');
+  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
+    throw new Error('Unauthorized');
+  }
+}
 
 function validatePort(port: number): boolean {
   return Number.isInteger(port) && port >= 1 && port <= 65535;
@@ -15,12 +18,18 @@ function validatePort(port: number): boolean {
 
 function maskTarget(target: any) {
   return {
-    ...target,
-    password: null, // Never expose plaintext passwords
-    privateKey: null, // Never expose plaintext private keys  
-    passphrase: null, // Never expose plaintext passphrases
-    hasPassword: target.authType === 'password' && !!target.password,
-    hasPrivateKey: target.authType === 'key' && !!target.privateKey,
+    id: target.id,
+    name: target.name,
+    host: target.host,
+    sshUser: target.sshUser,
+    sshPort: target.sshPort,
+    rootPath: target.rootPath,
+    env: target.env,
+    authType: target.authType,
+    hasPassword: target.hasPassword,
+    hasPrivateKey: target.hasPrivateKey,
+    createdAt: target.createdAt,
+    updatedAt: target.updatedAt
   };
 }
 
@@ -28,10 +37,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  let user = null;
   try {
-    user = await getCurrentUser(request);
-    requireRole(user, 'read');
+    requireAuth(request);
 
     const { id } = params;
 
@@ -47,27 +54,20 @@ export async function GET(
       .limit(1);
 
     if (target.length === 0) {
-      await logFailure(request, user.id, AUDIT_ACTIONS.TARGETS_LIST, 'targets', parseInt(id), {
-        error: 'Target not found'
-      });
-
       return NextResponse.json({ error: 'Target not found' }, { status: 404 });
     }
 
     const maskedTarget = maskTarget(target[0]);
 
-    await logSuccess(request, user.id, AUDIT_ACTIONS.TARGETS_LIST, 'targets', parseInt(id));
-
     return NextResponse.json(maskedTarget);
   } catch (error) {
-    const roleError = handleRoleError(error);
+    console.error('GET /api/targets/[id] error:', error);
     
-    await logFailure(request, user?.id || null, AUDIT_ACTIONS.TARGETS_LIST, 'targets', 
-      params.id ? parseInt(params.id) : null, {
-        error: roleError.error
-      });
-
-    return NextResponse.json(roleError, { status: roleError.status });
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -75,10 +75,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  let user = null;
   try {
-    user = await getCurrentUser(request);
-    requireRole(user, 'write');
+    requireAuth(request);
 
     const { id } = params;
 
@@ -109,51 +107,7 @@ export async function PUT(
       .limit(1);
 
     if (existingTarget.length === 0) {
-      await logFailure(request, user.id, AUDIT_ACTIONS.TARGETS_UPDATE, 'targets', parseInt(id), {
-        error: 'Target not found'
-      });
-
       return NextResponse.json({ error: 'Target not found' }, { status: 404 });
-    }
-
-    // Validate required fields if provided
-    if (name !== undefined) {
-      if (!name || typeof name !== 'string' || !name.trim()) {
-        return NextResponse.json({
-          error: 'Name must be a non-empty string'
-        }, { status: 400 });
-      }
-    }
-
-    if (host !== undefined) {
-      if (!host || typeof host !== 'string' || !host.trim()) {
-        return NextResponse.json({
-          error: 'Host must be a non-empty string'
-        }, { status: 400 });
-      }
-    }
-
-    // Validate ssh_port if provided
-    if (ssh_port !== undefined && !validatePort(ssh_port)) {
-      return NextResponse.json({
-        error: 'SSH port must be an integer between 1 and 65535'
-      }, { status: 400 });
-    }
-
-    // Validate auth_type if provided
-    if (auth_type !== undefined && !VALID_AUTH_TYPES.includes(auth_type as AuthType)) {
-      return NextResponse.json({
-        error: `Auth type must be one of: ${VALID_AUTH_TYPES.join(', ')}`
-      }, { status: 400 });
-    }
-
-    // Validate auth-specific fields
-    if (auth_type === 'key') {
-      if (!private_key || typeof private_key !== 'string' || !private_key.trim()) {
-        return NextResponse.json({
-          error: 'Private key is required when auth_type is "key"'
-        }, { status: 400 });
-      }
     }
 
     // Build update object
@@ -163,27 +117,47 @@ export async function PUT(
 
     // Update basic fields
     if (name !== undefined) {
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return NextResponse.json({
+          error: 'Name must be a non-empty string'
+        }, { status: 400 });
+      }
       updateData.name = name.trim();
     }
     if (host !== undefined) {
+      if (!host || typeof host !== 'string' || !host.trim()) {
+        return NextResponse.json({
+          error: 'Host must be a non-empty string'
+        }, { status: 400 });
+      }
       updateData.host = host.trim();
     }
     if (ssh_user !== undefined) {
-      updateData.sshUser = ssh_user.trim() || 'root';
+      updateData.sshUser = ssh_user?.trim() || 'root';
     }
     if (ssh_port !== undefined) {
+      if (!validatePort(ssh_port)) {
+        return NextResponse.json({
+          error: 'SSH port must be an integer between 1 and 65535'
+        }, { status: 400 });
+      }
       updateData.sshPort = ssh_port;
     }
     if (root_path !== undefined) {
-      updateData.rootPath = root_path.trim() || '/opt/apps';
+      updateData.rootPath = root_path?.trim() || '/opt/apps';
     }
     if (env !== undefined) {
-      updateData.env = env.trim() || 'prod';
+      updateData.env = env?.trim() || 'prod';
     }
 
     // Handle auth type and credentials
     const finalAuthType = auth_type || existingTarget[0].authType;
     if (auth_type !== undefined) {
+      if (auth_type !== 'password' && auth_type !== 'key') {
+        return NextResponse.json({
+          error: 'Auth type must be either "password" or "key"'
+        }, { status: 400 });
+      }
       updateData.authType = auth_type;
     }
 
@@ -191,36 +165,42 @@ export async function PUT(
     if (finalAuthType === 'password') {
       // Clear key-based credentials when switching to password
       if (auth_type === 'password') {
-        updateData.privateKey = null;
-        updateData.passphrase = null;
+        updateData.privateKeyEncrypted = null;
+        updateData.passphraseEncrypted = null;
+        updateData.hasPrivateKey = false;
       }
       
       if (password !== undefined) {
         if (password === '' || password === null) {
-          updateData.password = null; // Clear password
+          updateData.passwordEncrypted = null;
+          updateData.hasPassword = false;
         } else {
-          updateData.password = encryptSecret(password); // Encrypt new password
+          updateData.passwordEncrypted = encryptCredential(password);
+          updateData.hasPassword = true;
         }
       }
     } else if (finalAuthType === 'key') {
       // Clear password when switching to key
       if (auth_type === 'key') {
-        updateData.password = null;
+        updateData.passwordEncrypted = null;
+        updateData.hasPassword = false;
       }
       
       if (private_key !== undefined) {
         if (private_key === '' || private_key === null) {
-          updateData.privateKey = null; // Clear private key
+          updateData.privateKeyEncrypted = null;
+          updateData.hasPrivateKey = false;
         } else {
-          updateData.privateKey = encryptSecret(private_key.trim()); // Encrypt new key
+          updateData.privateKeyEncrypted = encryptCredential(private_key.trim());
+          updateData.hasPrivateKey = true;
         }
       }
       
       if (passphrase !== undefined) {
         if (passphrase === '' || passphrase === null) {
-          updateData.passphrase = null; // Clear passphrase
+          updateData.passphraseEncrypted = null;
         } else {
-          updateData.passphrase = encryptSecret(passphrase); // Encrypt new passphrase
+          updateData.passphraseEncrypted = encryptCredential(passphrase);
         }
       }
     }
@@ -232,23 +212,16 @@ export async function PUT(
 
     const maskedTarget = maskTarget(updatedTarget[0]);
 
-    await logSuccess(request, user.id, AUDIT_ACTIONS.TARGETS_UPDATE, 'targets', parseInt(id), {
-      updatedFields: Object.keys(updateData).filter(key => key !== 'updatedAt')
-    });
-
     return NextResponse.json(maskedTarget);
 
   } catch (error) {
-    console.error('PUT error:', error);
+    console.error('PUT /api/targets/[id] error:', error);
     
-    const roleError = handleRoleError(error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    await logFailure(request, user?.id || null, AUDIT_ACTIONS.TARGETS_UPDATE, 'targets', 
-      params.id ? parseInt(params.id) : null, {
-        error: roleError.error
-      });
-
-    return NextResponse.json(roleError, { status: roleError.status });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -256,10 +229,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  let user = null;
   try {
-    user = await getCurrentUser(request);
-    requireRole(user, 'delete');
+    requireAuth(request);
 
     const { id } = params;
 
@@ -276,10 +247,6 @@ export async function DELETE(
       .limit(1);
 
     if (existingTarget.length === 0) {
-      await logFailure(request, user.id, AUDIT_ACTIONS.TARGETS_DELETE, 'targets', parseInt(id), {
-        error: 'Target not found'
-      });
-
       return NextResponse.json({ error: 'Target not found' }, { status: 404 });
     }
 
@@ -289,27 +256,17 @@ export async function DELETE(
 
     const maskedTarget = maskTarget(deletedTarget[0]);
 
-    await logSuccess(request, user.id, AUDIT_ACTIONS.TARGETS_DELETE, 'targets', parseInt(id), {
-      deletedTarget: {
-        name: deletedTarget[0].name,
-        host: deletedTarget[0].host
-      }
-    });
-
     return NextResponse.json({
       message: 'Target deleted successfully',
       deletedTarget: maskedTarget
     });
   } catch (error) {
-    console.error('DELETE error:', error);
+    console.error('DELETE /api/targets/[id] error:', error);
     
-    const roleError = handleRoleError(error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    await logFailure(request, user?.id || null, AUDIT_ACTIONS.TARGETS_DELETE, 'targets', 
-      params.id ? parseInt(params.id) : null, {
-        error: roleError.error
-      });
-
-    return NextResponse.json(roleError, { status: roleError.status });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

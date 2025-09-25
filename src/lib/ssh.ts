@@ -1,285 +1,275 @@
 import { Client } from 'ssh2';
+import SftpClient from 'ssh2-sftp-client';
+import fs from 'fs';
+import path from 'path';
+import tar from 'tar';
+import StreamZip from 'node-stream-zip';
 
-interface SSHConnectionConfig {
+export interface SSHConfig {
   host: string;
-  port?: number;
+  port: number;
   username: string;
   password?: string;
-  privateKey?: string;
+  privateKey?: string | Buffer;
   passphrase?: string;
   timeout?: number;
 }
 
-interface FileInfo {
+export interface FileEntry {
   name: string;
-  type: 'file' | 'directory' | 'link';
-  size: number;
-  mtime: string;
+  type: 'file' | 'directory';
+  mtime: number;
+  size?: number;
 }
 
-interface ProcessInfo {
+export interface ProcessInfo {
   pid: number;
   cmd: string;
   port?: number;
-  started_at?: string;
+  startedAt?: number;
 }
 
-interface CommandResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
-
-export async function connectSSH(config: SSHConnectionConfig): Promise<Client> {
+export async function connectSSH(config: SSHConfig): Promise<Client> {
   return new Promise((resolve, reject) => {
     const client = new Client();
     
-    const connectionConfig: any = {
-      host: config.host,
-      port: config.port || 22,
-      username: config.username,
-      readyTimeout: config.timeout || 30000,
-    };
-
-    if (config.privateKey) {
-      connectionConfig.privateKey = config.privateKey;
-      if (config.passphrase) {
-        connectionConfig.passphrase = config.passphrase;
-      }
-    } else if (config.password) {
-      connectionConfig.password = config.password;
-    } else {
-      reject(new Error('Either password or privateKey must be provided'));
-      return;
-    }
-
     client.on('ready', () => {
       resolve(client);
     });
-
+    
     client.on('error', (err) => {
-      reject(new Error(`SSH connection failed: ${err.message}`));
+      reject(err);
     });
-
-    client.on('timeout', () => {
-      reject(new Error('SSH connection timeout'));
-    });
-
-    try {
-      client.connect(connectionConfig);
-    } catch (error) {
-      reject(new Error(`SSH connection error: ${error}`));
+    
+    const connectConfig: any = {
+      host: config.host,
+      port: config.port,
+      username: config.username,
+      readyTimeout: config.timeout || 10000
+    };
+    
+    if (config.password) {
+      connectConfig.password = config.password;
+    } else if (config.privateKey) {
+      connectConfig.privateKey = config.privateKey;
+      if (config.passphrase) {
+        connectConfig.passphrase = config.passphrase;
+      }
     }
+    
+    client.connect(connectConfig);
   });
 }
 
-export async function executeCommand(client: Client, command: string): Promise<CommandResult> {
-  return new Promise((resolve, reject) => {
-    if (!client || !client.exec) {
-      reject(new Error('Invalid SSH client'));
-      return;
+export async function connectSFTP(config: SSHConfig): Promise<SftpClient> {
+  const sftp = new SftpClient();
+  
+  const connectConfig: any = {
+    host: config.host,
+    port: config.port,
+    username: config.username,
+    readyTimeout: config.timeout || 10000
+  };
+  
+  if (config.password) {
+    connectConfig.password = config.password;
+  } else if (config.privateKey) {
+    connectConfig.privateKey = config.privateKey;
+    if (config.passphrase) {
+      connectConfig.passphrase = config.passphrase;
     }
+  }
+  
+  await sftp.connect(connectConfig);
+  return sftp;
+}
 
+export async function execCommand(client: Client, command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
     client.exec(command, (err, stream) => {
       if (err) {
-        reject(new Error(`Command execution failed: ${err.message}`));
+        reject(err);
         return;
       }
-
+      
       let stdout = '';
       let stderr = '';
-      let exitCode = 0;
-
+      
       stream.on('close', (code: number) => {
-        exitCode = code || 0;
-        resolve({ stdout, stderr, exitCode });
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          reject(new Error(`Command failed with exit code ${code}: ${stderr}`));
+        }
       });
-
+      
       stream.on('data', (data: Buffer) => {
         stdout += data.toString();
       });
-
+      
       stream.stderr.on('data', (data: Buffer) => {
         stderr += data.toString();
-      });
-
-      stream.on('error', (streamErr: Error) => {
-        reject(new Error(`Stream error: ${streamErr.message}`));
       });
     });
   });
 }
 
-export function parseFileList(lsOutput: string): FileInfo[] {
-  try {
-    const lines = lsOutput.trim().split('\n').filter(line => line.trim() !== '');
-    const files: FileInfo[] = [];
+export async function listFiles(client: Client, remotePath: string): Promise<FileEntry[]> {
+  const sftp = await new Promise<any>((resolve, reject) => {
+    client.sftp((err, sftp) => {
+      if (err) reject(err);
+      else resolve(sftp);
+    });
+  });
 
-    for (const line of lines) {
-      // Skip total line
-      if (line.startsWith('total ')) continue;
-
-      // Parse ls -la output: permissions links owner group size month day time filename
-      const parts = line.trim().split(/\s+/);
-      if (parts.length < 9) continue;
-
-      const permissions = parts[0];
-      const filename = parts.slice(8).join(' ');
-      
-      // Skip . and .. entries
-      if (filename === '.' || filename === '..') continue;
-
-      let type: 'file' | 'directory' | 'link' = 'file';
-      if (permissions.startsWith('d')) type = 'directory';
-      else if (permissions.startsWith('l')) type = 'link';
-
-      const size = parseInt(parts[4]) || 0;
-      
-      // Parse date (month day time/year)
-      const month = parts[5];
-      const day = parts[6];
-      const timeOrYear = parts[7];
-      
-      // Create approximate date string
-      const currentYear = new Date().getFullYear();
-      let mtime: string;
-      
-      if (timeOrYear.includes(':')) {
-        // It's a time, use current year
-        mtime = `${currentYear}-${getMonthNumber(month).toString().padStart(2, '0')}-${day.padStart(2, '0')} ${timeOrYear}:00`;
-      } else {
-        // It's a year
-        mtime = `${timeOrYear}-${getMonthNumber(month).toString().padStart(2, '0')}-${day.padStart(2, '0')} 00:00:00`;
+  return new Promise((resolve, reject) => {
+    sftp.readdir(remotePath, (err: any, list: any[]) => {
+      if (err) {
+        reject(err);
+        return;
       }
-
-      files.push({
-        name: filename,
-        type,
-        size,
-        mtime
-      });
-    }
-
-    return files;
-  } catch (error) {
-    throw new Error(`Failed to parse file list: ${error}`);
-  }
-}
-
-export function parseProcessList(psOutput: string): ProcessInfo[] {
-  try {
-    const lines = psOutput.trim().split('\n').filter(line => line.trim() !== '');
-    const processes: ProcessInfo[] = [];
-
-    // Skip header line if present
-    const dataLines = lines[0].toLowerCase().includes('pid') ? lines.slice(1) : lines;
-
-    for (const line of dataLines) {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length < 2) continue;
-
-      const pid = parseInt(parts[0]);
-      if (isNaN(pid)) continue;
-
-      // Join remaining parts as command
-      const cmd = parts.slice(1).join(' ');
       
-      const processInfo: ProcessInfo = {
-        pid,
-        cmd
-      };
-
-      // Try to extract port from command if it contains port-like patterns
-      const portMatch = cmd.match(/:(\d{2,5})\b/);
-      if (portMatch) {
-        const port = parseInt(portMatch[1]);
-        if (port >= 1 && port <= 65535) {
-          processInfo.port = port;
-        }
-      }
-
-      // Try to extract start time if available in ps output format
-      const timeMatch = cmd.match(/(\d{2}:\d{2})/);
-      if (timeMatch) {
-        processInfo.started_at = timeMatch[1];
-      }
-
-      processes.push(processInfo);
-    }
-
-    return processes;
-  } catch (error) {
-    throw new Error(`Failed to parse process list: ${error}`);
-  }
-}
-
-function getMonthNumber(monthName: string): number {
-  const months: { [key: string]: number } = {
-    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4,
-    'May': 5, 'Jun': 6, 'Jul': 7, 'Aug': 8,
-    'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-  };
-  return months[monthName] || 1;
-}
-
-// File system operations
-export async function listFiles(client: Client, path: string = '.'): Promise<FileInfo[]> {
-  try {
-    const result = await executeCommand(client, `ls -la "${path}"`);
-    if (result.exitCode !== 0) {
-      throw new Error(`ls command failed: ${result.stderr}`);
-    }
-    return parseFileList(result.stdout);
-  } catch (error) {
-    throw new Error(`Failed to list files: ${error}`);
-  }
+      const entries: FileEntry[] = list.map((item) => ({
+        name: item.filename,
+        type: item.longname.startsWith('d') ? 'directory' : 'file',
+        mtime: item.attrs.mtime * 1000, // Convert to milliseconds
+        size: item.attrs.size
+      }));
+      
+      resolve(entries);
+    });
+  });
 }
 
 export async function listProcesses(client: Client, filter?: string): Promise<ProcessInfo[]> {
   try {
-    let command = 'ps aux';
+    let command = 'ps aux --no-headers';
     if (filter) {
-      command += ` | grep "${filter}"`;
+      command += ` | grep "${filter}" | grep -v grep`;
     }
     
-    const result = await executeCommand(client, command);
-    if (result.exitCode !== 0 && !filter) {
-      throw new Error(`ps command failed: ${result.stderr}`);
+    const output = await execCommand(client, command);
+    const processes: ProcessInfo[] = [];
+    
+    const lines = output.trim().split('\n').filter(line => line.trim());
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 11) {
+        const pid = parseInt(parts[1]);
+        const cmd = parts.slice(10).join(' ');
+        
+        processes.push({
+          pid,
+          cmd,
+          startedAt: Date.now() // Approximate, could parse STIME if needed
+        });
+      }
     }
     
-    return parseProcessList(result.stdout);
+    // Try to detect ports using lsof if available
+    try {
+      const lsofOutput = await execCommand(client, 'lsof -i -P -n | grep LISTEN');
+      const portMap = new Map<number, number>();
+      
+      const lsofLines = lsofOutput.trim().split('\n');
+      for (const line of lsofLines) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 9) {
+          const pid = parseInt(parts[1]);
+          const portMatch = parts[8].match(/:(\d+)$/);
+          if (portMatch) {
+            portMap.set(pid, parseInt(portMatch[1]));
+          }
+        }
+      }
+      
+      // Map ports to processes
+      processes.forEach(proc => {
+        if (portMap.has(proc.pid)) {
+          proc.port = portMap.get(proc.pid);
+        }
+      });
+    } catch (lsofError) {
+      // lsof not available or failed, continue without port info
+    }
+    
+    return processes;
   } catch (error) {
     throw new Error(`Failed to list processes: ${error}`);
   }
 }
 
-export async function checkFileExists(client: Client, filePath: string): Promise<boolean> {
-  try {
-    const result = await executeCommand(client, `test -e "${filePath}" && echo "exists" || echo "not found"`);
-    return result.stdout.trim() === 'exists';
-  } catch (error) {
-    throw new Error(`Failed to check file existence: ${error}`);
+export async function uploadFile(sftp: SftpClient, localPath: string, remotePath: string): Promise<void> {
+  await sftp.put(localPath, remotePath);
+}
+
+export async function downloadFile(sftp: SftpClient, remotePath: string, localPath: string): Promise<void> {
+  await sftp.get(remotePath, localPath);
+}
+
+export async function createDirectory(sftp: SftpClient, remotePath: string, recursive: boolean = true): Promise<void> {
+  await sftp.mkdir(remotePath, recursive);
+}
+
+export async function extractArchive(client: Client, archivePath: string, extractPath: string): Promise<void> {
+  const ext = path.extname(archivePath).toLowerCase();
+  
+  if (ext === '.gz' || archivePath.endsWith('.tar.gz')) {
+    // Extract tar.gz
+    await execCommand(client, `cd "${path.dirname(extractPath)}" && tar -xzf "${archivePath}" -C "${extractPath}"`);
+  } else if (ext === '.zip') {
+    // Extract zip
+    await execCommand(client, `cd "${path.dirname(extractPath)}" && unzip -q "${archivePath}" -d "${extractPath}"`);
+  } else {
+    throw new Error(`Unsupported archive format: ${ext}`);
   }
 }
 
-export async function createDirectory(client: Client, dirPath: string): Promise<void> {
+export async function createSymlink(client: Client, target: string, linkPath: string): Promise<void> {
+  // Remove existing symlink/file first
   try {
-    const result = await executeCommand(client, `mkdir -p "${dirPath}"`);
-    if (result.exitCode !== 0) {
-      throw new Error(`mkdir command failed: ${result.stderr}`);
+    await execCommand(client, `rm -f "${linkPath}"`);
+  } catch (err) {
+    // Ignore if file doesn't exist
+  }
+  
+  await execCommand(client, `ln -sf "${target}" "${linkPath}"`);
+}
+
+export async function findJavaProcess(client: Client, jarName: string): Promise<ProcessInfo[]> {
+  const command = `ps aux | grep "java.*${jarName}" | grep -v grep`;
+  
+  try {
+    const output = await execCommand(client, command);
+    const processes: ProcessInfo[] = [];
+    
+    const lines = output.trim().split('\n').filter(line => line.trim());
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 11) {
+        const pid = parseInt(parts[1]);
+        const cmd = parts.slice(10).join(' ');
+        
+        processes.push({
+          pid,
+          cmd,
+          startedAt: Date.now()
+        });
+      }
     }
+    
+    return processes;
   } catch (error) {
-    throw new Error(`Failed to create directory: ${error}`);
+    return []; // No processes found
   }
 }
 
-export async function removeFile(client: Client, filePath: string): Promise<void> {
-  try {
-    const result = await executeCommand(client, `rm -f "${filePath}"`);
-    if (result.exitCode !== 0) {
-      throw new Error(`rm command failed: ${result.stderr}`);
-    }
-  } catch (error) {
-    throw new Error(`Failed to remove file: ${error}`);
-  }
+export async function killProcess(client: Client, pid: number): Promise<void> {
+  await execCommand(client, `kill ${pid}`);
+}
+
+export async function killProcessByPattern(client: Client, pattern: string): Promise<void> {
+  await execCommand(client, `pkill -f "${pattern}"`);
 }

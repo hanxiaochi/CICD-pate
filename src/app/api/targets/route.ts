@@ -1,13 +1,16 @@
+export const runtime = "nodejs";
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { targets } from '@/db/schema';
-import { eq, desc, like, or, and } from 'drizzle-orm';
-import { getCurrentUser, requireRole, handleRoleError } from '@/lib/auth';
-import { logSuccess, logFailure, AUDIT_ACTIONS } from '@/lib/audit';
-import { encryptSecret, decryptSecret, isEncrypted } from '@/lib/crypto';
+import { desc, like, or } from 'drizzle-orm';
+import { encryptCredential } from '@/lib/encryption';
 
-const VALID_AUTH_TYPES = ['password', 'key'] as const;
-type AuthType = typeof VALID_AUTH_TYPES[number];
+function requireAuth(request: NextRequest) {
+  const auth = request.headers.get('authorization');
+  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
+    throw new Error('Unauthorized');
+  }
+}
 
 function validatePort(port: number): boolean {
   return Number.isInteger(port) && port >= 1 && port <= 65535;
@@ -15,20 +18,24 @@ function validatePort(port: number): boolean {
 
 function maskTarget(target: any) {
   return {
-    ...target,
-    password: null, // Never expose plaintext passwords
-    privateKey: null, // Never expose plaintext private keys  
-    passphrase: null, // Never expose plaintext passphrases
-    hasPassword: target.authType === 'password' && !!target.password,
-    hasPrivateKey: target.authType === 'key' && !!target.privateKey,
+    id: target.id,
+    name: target.name,
+    host: target.host,
+    sshUser: target.sshUser,
+    sshPort: target.sshPort,
+    rootPath: target.rootPath,
+    env: target.env,
+    authType: target.authType,
+    hasPassword: target.hasPassword,
+    hasPrivateKey: target.hasPrivateKey,
+    createdAt: target.createdAt,
+    updatedAt: target.updatedAt
   };
 }
 
 export async function GET(request: NextRequest) {
-  let user = null;
   try {
-    user = await getCurrentUser(request);
-    requireRole(user, 'read');
+    requireAuth(request);
 
     const { searchParams } = new URL(request.url);
     
@@ -77,30 +84,21 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / pageSize)
     };
 
-    await logSuccess(request, user.id, AUDIT_ACTIONS.TARGETS_LIST, 'targets', null, {
-      page,
-      pageSize,
-      search: q,
-      resultCount: results.length
-    });
-
     return NextResponse.json(response);
   } catch (error) {
-    const roleError = handleRoleError(error);
+    console.error('GET /api/targets error:', error);
     
-    await logFailure(request, user?.id || null, AUDIT_ACTIONS.TARGETS_LIST, 'targets', null, {
-      error: roleError.error
-    });
-
-    return NextResponse.json(roleError, { status: roleError.status });
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  let user = null;
   try {
-    user = await getCurrentUser(request);
-    requireRole(user, 'write');
+    requireAuth(request);
 
     const body = await request.json();
     const {
@@ -121,20 +119,12 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!name || typeof name !== 'string' || !name.trim()) {
-      await logFailure(request, user.id, AUDIT_ACTIONS.TARGETS_CREATE, 'targets', null, {
-        error: 'Name is required'
-      });
-      
       return NextResponse.json({
         error: 'Name is required and must be a non-empty string'
       }, { status: 400 });
     }
 
     if (!host || typeof host !== 'string' || !host.trim()) {
-      await logFailure(request, user.id, AUDIT_ACTIONS.TARGETS_CREATE, 'targets', null, {
-        error: 'Host is required'
-      });
-
       return NextResponse.json({
         error: 'Host is required and must be a non-empty string'
       }, { status: 400 });
@@ -148,9 +138,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate auth_type
-    if (!VALID_AUTH_TYPES.includes(auth_type as AuthType)) {
+    if (auth_type !== 'password' && auth_type !== 'key') {
       return NextResponse.json({
-        error: `Auth type must be one of: ${VALID_AUTH_TYPES.join(', ')}`
+        error: 'Auth type must be either "password" or "key"'
       }, { status: 400 });
     }
 
@@ -173,6 +163,11 @@ export async function POST(request: NextRequest) {
       rootPath: root_path.trim() || '/opt/apps',
       authType: auth_type,
       env: env.trim() || 'prod',
+      hasPassword: false,
+      hasPrivateKey: false,
+      passwordEncrypted: null,
+      privateKeyEncrypted: null,
+      passphraseEncrypted: null,
       createdAt: now,
       updatedAt: now
     };
@@ -180,28 +175,20 @@ export async function POST(request: NextRequest) {
     // Handle credentials based on storeCredentials option
     if (storeCredentials) {
       // Encrypt and store credentials
-      if (auth_type === 'password' && password) {
-        targetData.password = encryptSecret(password);
-      } else {
-        targetData.password = null;
+      if (auth_type === 'password' && password && password.trim()) {
+        targetData.passwordEncrypted = encryptCredential(password);
+        targetData.hasPassword = true;
       }
 
       if (auth_type === 'key') {
         if (private_key && private_key.trim()) {
-          targetData.privateKey = encryptSecret(private_key.trim());
+          targetData.privateKeyEncrypted = encryptCredential(private_key.trim());
+          targetData.hasPrivateKey = true;
         }
         if (passphrase && passphrase.trim()) {
-          targetData.passphrase = encryptSecret(passphrase.trim());
+          targetData.passphraseEncrypted = encryptCredential(passphrase.trim());
         }
-      } else {
-        targetData.privateKey = null;
-        targetData.passphrase = null;
       }
-    } else {
-      // Don't store credentials (validation/test only mode)
-      targetData.password = null;
-      targetData.privateKey = null;
-      targetData.passphrase = null;
     }
 
     // Create target
@@ -211,25 +198,15 @@ export async function POST(request: NextRequest) {
 
     const maskedTarget = maskTarget(newTarget[0]);
 
-    await logSuccess(request, user.id, AUDIT_ACTIONS.TARGETS_CREATE, 'targets', newTarget[0].id, {
-      name: targetData.name,
-      host: targetData.host,
-      authType: targetData.authType,
-      env: targetData.env,
-      storeCredentials
-    });
-
     return NextResponse.json(maskedTarget, { status: 201 });
 
   } catch (error) {
     console.error('POST /api/targets error:', error);
     
-    const roleError = handleRoleError(error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    await logFailure(request, user?.id || null, AUDIT_ACTIONS.TARGETS_CREATE, 'targets', null, {
-      error: roleError.error
-    });
-
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
