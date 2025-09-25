@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const path = searchParams.get("path") || "/opt/apps";
 
