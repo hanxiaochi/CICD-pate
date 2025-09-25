@@ -1,43 +1,49 @@
-# CICD系统 - 统一Docker镜像
-FROM ruby:3.2-alpine
+# Multi-stage Dockerfile for Next.js 15 (Node 20)
+# Build stage
+FROM node:20-alpine AS builder
 
-# 设置环境变量
-ENV LANG=C.UTF-8
-ENV LC_ALL=C.UTF-8
-ENV RACK_ENV=production
+# Install OS deps if needed (git for postinstall, optional)
+RUN apk add --no-cache libc6-compat
 
-# 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖
-RUN apk add --no-cache \
-    sqlite \
-    sqlite-dev \
-    build-base \
-    git \
-    curl \
-    && rm -rf /var/cache/apk/*
+# Leverage cached deps
+COPY package.json package-lock.json* .npmrc* ./
+RUN npm ci --omit=optional
 
-# 配置RubyGems镜像源
-RUN gem sources --add https://gems.ruby-china.com/ --remove https://rubygems.org/
+# Copy source
+COPY . .
 
-# 安装必要的gems
-RUN gem install sinatra sequel sqlite3 bcrypt json --no-document
+# Ensure production build
+ENV NODE_ENV=production
 
-# 安装完整功能gems（可选）
-RUN gem install sinatra-flash haml sass --no-document || echo "Optional gems installation failed, will use simple mode"
+# Build Next.js
+RUN npm run build
 
-# 复制主应用文件
-COPY app.rb .
+# Runtime stage
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
 
-# 创建数据库目录
-RUN mkdir -p /app
+# Create non-root user for security
+RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
 
-# 暴露端口
-EXPOSE 4567
+# Copy only necessary artifacts from builder
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.ts ./next.config.ts
+COPY --from=builder /app/next-env.d.ts ./next-env.d.ts
 
-# 设置模式环境变量（可通过docker run -e CICD_MODE=full 覆盖）
-ENV CICD_MODE=simple
+# Expose Next.js port
+EXPOSE 3000
 
-# 启动命令
-CMD ["ruby", "app.rb"]
+# Healthcheck (optional)
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:3000 || exit 1
+
+# Run as non-root
+USER nextjs
+
+# Start the server
+CMD ["npm", "run", "start"]

@@ -1,0 +1,31 @@
+[Unit]
+Description=CI/CD Web (Next.js) - Production Server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Change to a non-root user that owns the app directory
+User=www-data
+Group=www-data
+# Path to the app on the server (adjust to your deployment path)
+WorkingDirectory=/opt/cicd-web
+# Load environment variables (create this file with KEY=VALUE lines)
+EnvironmentFile=-/etc/cicd-web.env
+# Ensure Node is in PATH (adjust if using nvm/asdf)
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Ensure PORT is set (override in env file if needed)
+Environment=PORT=3000
+# Start the Next.js production server (requires prior npm run build)
+ExecStart=/usr/bin/npm run start
+# Optional: increase file descriptors
+LimitNOFILE=1048576
+# Restart policy
+Restart=always
+RestartSec=5
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
