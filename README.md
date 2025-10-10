@@ -84,21 +84,6 @@ root
 - 客户端组件不要调用服务端专用 API（cookies/headers/redirect/notFound）。
 - UI 中不要使用浏览器原生 alert/confirm/prompt，改用 shadcn/ui 的对话框与 sonner 通知。
 
-## 代码行数统计
-- 估算当前代码规模：约 7,000 – 10,000 行（不含依赖）。
-- 可复现统计命令：
-  - Bash（macOS/Linux）
-    ```bash
-    find src backend docs deploy -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.md" -o -name "*.mjs" -o -name "*.json" -o -name "*.sh" -o -name "*.yml" -o -name "*.yaml" \) \
-      -not -path "**/node_modules/**" -not -path "**/.next/**" \
-      -exec wc -l {} + | tail -n 1
-    ```
-  - PowerShell（Windows）
-    ```powershell
-    Get-ChildItem src,backend,docs,deploy -Recurse -Include *.ts,*.tsx,*.md,*.mjs,*.json,*.sh,*.yml,*.yaml | \
-      Where-Object { $_.FullName -notmatch "node_modules|\.next" } | \
-      Get-Content | Measure-Object -Line
-    ```
 
 ## 部署建议（可选）
 - 以 Node 20+ 的环境运行 `npm run build && npm start`。
@@ -112,3 +97,5 @@ root
 
 ---
 如需对接真实数据库、完善权限与审计、或新增功能，请参考 docs/SSME.md 的"维护与变更建议"。
+
+<a href="https://zread.ai/hanxiaochi/CICD-pate" target="_blank"><img src="https://img.shields.io/badge/Ask_Zread-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff" alt="zread"/></a>
