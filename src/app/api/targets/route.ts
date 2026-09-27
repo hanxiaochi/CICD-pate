@@ -4,13 +4,7 @@ import { db } from '@/db';
 import { targets } from '@/db/schema';
 import { desc, like, or } from 'drizzle-orm';
 import { encryptCredential } from '@/lib/encryption';
-
-function requireAuth(request: NextRequest) {
-  const auth = request.headers.get('authorization');
-  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
-    throw new Error('Unauthorized');
-  }
-}
+import { requireApiToken as requireAuth } from '@/lib/api-auth';
 
 function validatePort(port: number): boolean {
   return Number.isInteger(port) && port >= 1 && port <= 65535;
@@ -47,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Search parameter
     const q = searchParams.get('q');
 
-    let query = db.select().from(targets);
+    let query = db.select().from(targets).$dynamic();
 
     // Apply search filter if provided
     if (q && q.trim()) {

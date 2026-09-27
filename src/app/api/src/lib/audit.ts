@@ -38,8 +38,8 @@ interface LogAuditParams {
   resourceId?: number | null;
   success: boolean;
   details?: any;
-  ip?: string;
-  userAgent?: string;
+  ip?: string | null;
+  userAgent?: string | null;
 }
 
 export async function logAudit({
@@ -112,10 +112,6 @@ export function getClientInfo(request: NextRequest): ClientInfo {
     ip = realIp.trim();
   } else if (cfConnectingIp) {
     ip = cfConnectingIp.trim();
-  } else {
-    // Fallback to connection remote address if available
-    // Note: In serverless environments, this might not be available
-    ip = request.ip || null;
   }
 
   // Extract User-Agent

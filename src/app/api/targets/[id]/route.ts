@@ -4,13 +4,7 @@ import { db } from '@/db';
 import { targets } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { encryptCredential } from '@/lib/encryption';
-
-function requireAuth(request: NextRequest) {
-  const auth = request.headers.get('authorization');
-  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
-    throw new Error('Unauthorized');
-  }
-}
+import { requireApiToken as requireAuth } from '@/lib/api-auth';
 
 function validatePort(port: number): boolean {
   return Number.isInteger(port) && port >= 1 && port <= 65535;
@@ -35,12 +29,12 @@ function maskTarget(target: any) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     requireAuth(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({ 
@@ -73,12 +67,12 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     requireAuth(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({ 
@@ -227,12 +221,12 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     requireAuth(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({ 

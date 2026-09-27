@@ -2,22 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { packages, projects } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
-
-function requireAuth(request: NextRequest) {
-  const auth = request.headers.get('authorization');
-  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
-    throw new Error('Unauthorized');
-  }
-}
+import { requireApiToken as requireAuth } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     requireAuth(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({
@@ -59,12 +53,12 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     requireAuth(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({

@@ -2,13 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { projects, systems } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
-
-function requireAuth(request: NextRequest) {
-  const auth = request.headers.get('authorization');
-  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
-    throw new Error('Unauthorized');
-  }
-}
+import { requireApiToken as requireAuth } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {

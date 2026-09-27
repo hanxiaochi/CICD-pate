@@ -4,6 +4,8 @@
 
 本项目是基于 Next.js 15（React 19）的全栈应用，提供从项目管理、构建发布、到远程服务器上的应用启动/停止/重启与日志查看的一体化能力。
 
+**English summary:** A lightweight operations control plane for project, target, deployment, rollback, remote process and log workflows. The current hardening branch focuses on reproducible dependencies, explicit credential boundaries and reviewable operational controls rather than claiming production readiness from a UI alone.
+
 - 技术栈：Next.js 15 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
 - 后端路由：使用 Next.js 内置 API（app/api/*）
 - 远程控制：通过 SSH 在目标机执行 nohup/shell 脚本并读取日志流
@@ -21,12 +23,13 @@
    ```bash
    npm install
    ```
-2. 启动开发服务
+2. 复制 `.env.example` 为本机 `.env`，为 Turso、凭据加密、管理员登录和 API Token 配置独立的开发值。不要复用生产凭据，不要提交 `.env`。
+3. 启动开发服务
    ```bash
    npm run dev
    # 默认 http://localhost:3000
    ```
-3. 构建与生产启动
+4. 构建与生产启动
    ```bash
    npm run build
    npm start
@@ -76,9 +79,18 @@ root
 - GET `/api/control/logs?path=<log_file>`
 
 ## 环境变量
-- 默认本地开发无需额外环境变量。
-- 若集成外部服务（如数据库、支付、第三方 API），请在 .env 中按需要添加对应变量。
-- API 鉴权：前端请求通过封装的 withAuth 读取本地存储的 Bearer Token 并附加到请求头（如有登录流程时）。
+- 数据库：`TURSO_CONNECTION_URL`、`TURSO_AUTH_TOKEN`。
+- 凭据加密：`SSH_SECRET`、`ENCRYPTION_KEY`，每个环境使用不同的高熵值。
+- 管理员登录：`CICD_ADMIN_USERNAME`、`CICD_ADMIN_PASSWORD`。
+- API 认证：`CICD_API_TOKEN`。服务端拒绝缺失或不匹配的 Bearer Token。
+- 可选 API 地址：`NEXT_PUBLIC_API_BASE`。
+- 所有真实值只保存在本机忽略文件或批准的 Secret 管理系统中。
+
+## 当前验证状态
+
+2026-09-28 的加固分支已完成可复现安装修复、依赖收敛、安全小版本升级、API Token 校验、Next.js 15.5 兼容调整、ESLint 和生产构建。依赖审计为 0 个已知漏洞，认证黑盒检查覆盖错误登录、正确登录、缺失 Bearer 和任意 Bearer。
+
+完整命令、结果、警告和未验证项见 [验证记录](docs/VERIFICATION-2026-09-28.md)。这些结果不代表真实数据库、SSH/SFTP、远程部署、回滚、容器或客户生产环境已经验收。
 
 ## 开发注意事项
 - 仅使用 Tailwind CSS 进行样式编写（禁用 styled-jsx）。

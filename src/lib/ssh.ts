@@ -1,9 +1,6 @@
 import { Client } from 'ssh2';
 import SftpClient from 'ssh2-sftp-client';
-import fs from 'fs';
 import path from 'path';
-import tar from 'tar';
-import StreamZip from 'node-stream-zip';
 
 export interface SSHConfig {
   host: string;

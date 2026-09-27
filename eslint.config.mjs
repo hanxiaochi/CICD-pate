@@ -6,6 +6,9 @@ const compat = new FlatCompat({
 })
  
 const eslintConfig = [
+  {
+    ignores: ['.next/**', 'node_modules/**', 'backend/rails/**'],
+  },
   ...compat.config({
     extends: ['next'],
     plugins: ['import'],
@@ -14,11 +17,10 @@ const eslintConfig = [
     rules: {
       'react/no-unescaped-entities': 'off',
       '@next/next/no-img-element': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
       'react-hooks/exhaustive-deps': 'off',
       'import/no-unresolved': 'error',
-      'import/named': 'error',
+      // TypeScript validates named type exports more reliably than eslint-plugin-import.
+      'import/named': 'off',
       'import/default': 'error',
       'import/namespace': 'error',
       'import/no-absolute-path': 'error',

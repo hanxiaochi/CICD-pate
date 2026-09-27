@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { eq, like, and, or, desc } from 'drizzle-orm';
+import { requireApiToken } from '@/lib/api-auth';
 
 const VALID_ROLES = ['admin', 'developer', 'viewer'] as const;
 const VALID_STATUSES = ['active', 'disabled'] as const;
@@ -26,6 +27,7 @@ function isValidEmail(email: string): boolean {
 
 export async function GET(request: NextRequest) {
   try {
+    requireApiToken(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -66,7 +68,7 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get('sort') || 'createdAt';
     const order = searchParams.get('order') || 'desc';
 
-    let query = db.select().from(users);
+    let query = db.select().from(users).$dynamic();
 
     // Build where conditions
     const conditions = [];
@@ -114,6 +116,10 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('GET /api/users error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     return NextResponse.json({
       success: false,
       error: 'Internal server error'
@@ -123,6 +129,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    requireApiToken(request);
     const body = await request.json();
     const { name, email, role = 'viewer', scopes = [], status = 'active' } = body;
 
@@ -202,6 +209,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('POST /api/users error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
     
     // Handle unique constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed: users.email')) {
@@ -220,6 +230,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    requireApiToken(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -344,6 +355,9 @@ export async function PUT(request: NextRequest) {
 
   } catch (error) {
     console.error('PUT /api/users error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
     
     // Handle unique constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed: users.email')) {
@@ -362,6 +376,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    requireApiToken(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -399,6 +414,10 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     console.error('DELETE /api/users error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     return NextResponse.json({
       success: false,
       error: 'Internal server error'

@@ -123,7 +123,6 @@ export default function DeploymentsPage() {
       }
     };
     loadCascade();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 新增：选择项目后加载成品包
@@ -152,7 +151,6 @@ export default function DeploymentsPage() {
       }
     };
     loadPkgs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selProjectId]);
 
   // load targets (paginated)
@@ -180,7 +178,6 @@ export default function DeploymentsPage() {
       }
     };
     loadTargets();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, q]);
 
   async function testConnection() {
@@ -421,7 +418,6 @@ export default function DeploymentsPage() {
       refreshFs();
       refreshProcs();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId]);
 
   // 新增：将选择持久化到本地

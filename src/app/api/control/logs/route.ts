@@ -1,16 +1,14 @@
 import { NextRequest } from "next/server";
+import { hasValidApiToken } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  if (!hasValidApiToken(req)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
   const { searchParams } = new URL(req.url);
   const path = searchParams.get("path") || "/var/log/app.log";
-
-  // Optional bearer check (mock): allow if absent to keep demo smooth
-  // const auth = req.headers.get("authorization");
-  // if (!auth?.startsWith("Bearer ")) {
-  //   return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-  // }
 
   const encoder = new TextEncoder();
 

@@ -6,22 +6,16 @@ import { targets } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { decryptCredential } from '@/lib/encryption';
 import { connectSSH, listFiles } from '@/lib/ssh';
-
-function requireAuth(request: NextRequest) {
-  const auth = request.headers.get('authorization');
-  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
-    throw new Error('Unauthorized');
-  }
-}
+import { requireApiToken as requireAuth } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     requireAuth(request);
 
-    const { id } = params;
+    const { id } = await params;
     const { searchParams } = new URL(request.url);
     const path = searchParams.get('path');
 

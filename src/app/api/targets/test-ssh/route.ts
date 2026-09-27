@@ -2,13 +2,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectSSH } from '@/lib/ssh';
-
-function requireAuth(request: NextRequest) {
-  const auth = request.headers.get('authorization');
-  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
-    throw new Error('Unauthorized');
-  }
-}
+import { requireApiToken as requireAuth } from '@/lib/api-auth';
 
 interface SSHTestTarget {
   host: string;

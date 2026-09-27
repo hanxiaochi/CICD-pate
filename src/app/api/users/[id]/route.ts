@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { requireApiToken } from '@/lib/api-auth';
 
 type UserRole = 'admin' | 'developer' | 'viewer';
 type UserStatus = 'active' | 'disabled';
@@ -21,10 +22,11 @@ interface UpdateUserData {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    requireApiToken(request);
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({
@@ -51,19 +53,24 @@ export async function GET(
     });
   } catch (error) {
     console.error('GET error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     return NextResponse.json({
       success: false,
-      error: 'Internal server error: ' + error
+      error: 'Internal server error'
     }, { status: 500 });
   }
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    requireApiToken(request);
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({
@@ -185,19 +192,24 @@ export async function PATCH(
     });
   } catch (error) {
     console.error('PATCH error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     return NextResponse.json({
       success: false,
-      error: 'Internal server error: ' + error
+      error: 'Internal server error'
     }, { status: 500 });
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    requireApiToken(request);
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({
@@ -230,9 +242,13 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('DELETE error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     return NextResponse.json({
       success: false,
-      error: 'Internal server error: ' + error
+      error: 'Internal server error'
     }, { status: 500 });
   }
 }

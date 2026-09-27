@@ -2,25 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deployments, projects, packages, targets, systems, deploymentSteps } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { requireApiToken } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    // Check for Bearer token authorization
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ 
-        error: 'Bearer token required',
-        code: 'MISSING_BEARER_TOKEN' 
-      }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    if (!token) {
-      return NextResponse.json({ 
-        error: 'Invalid bearer token',
-        code: 'INVALID_BEARER_TOKEN' 
-      }, { status: 401 });
-    }
+    requireApiToken(request);
 
     // Get latest 50 deployments with joins
     const deploymentsWithDetails = await db
@@ -116,8 +102,12 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('GET error:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     return NextResponse.json({ 
-      error: 'Internal server error: ' + error 
+      error: 'Internal server error'
     }, { status: 500 });
   }
 }

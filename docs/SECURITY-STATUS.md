@@ -16,6 +16,8 @@ The repository must not be described as remediated until provider-side revocatio
 
 ## Current public-use boundary
 
+The current branch removes the hard-coded demo administrator and rejects API requests unless they carry the configured `CICD_API_TOKEN`. This is a bounded portfolio control, not a complete production identity system.
+
 This codebase is a portfolio prototype and is not approved for internet-facing production use. Before production deployment it still requires, at minimum:
 
 - replacement of demo login behavior with a real identity and session system;

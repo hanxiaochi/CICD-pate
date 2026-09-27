@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
+import { hasValidApiToken } from "@/lib/api-auth";
 
 export async function POST(req: Request) {
+  if (!hasValidApiToken(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const body = await req.json().catch(() => ({}));
   const { repo_url } = body || {};
   if (!repo_url) {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasValidApiToken } from "@/lib/api-auth";
 
 // Use same in-memory store as other routes
 const g = globalThis as any;
@@ -12,6 +13,9 @@ if (!g.__SYSTEMS__) {
 }
 
 export async function POST(req: Request) {
+  if (!hasValidApiToken(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const body = await req.json().catch(() => ({}));
   const { project_id, system_id } = body || {};
   if (typeof project_id !== "number") {

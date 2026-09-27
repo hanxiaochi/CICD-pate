@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiToken } from '@/lib/api-auth';
 
 async function seedUsers() {
     const { seedUsers } = await import('@/db/seeds/users');
@@ -12,6 +13,7 @@ async function seedTargets() {
 
 export async function POST(request: NextRequest) {
   try {
+    requireApiToken(request);
     console.log('Starting database seeding operation...');
     
     await seedUsers();
@@ -26,10 +28,13 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('Database seeding failed:', error);
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     return NextResponse.json({
       success: false,
-      error: 'Failed to seed database: ' + (error instanceof Error ? error.message : 'Unknown error')
+      error: 'Failed to seed database'
     }, { status: 500 });
   }
 }

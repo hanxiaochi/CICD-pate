@@ -7,13 +7,7 @@ import { eq, desc, and } from 'drizzle-orm';
 import { decryptCredential } from '@/lib/encryption';
 import { connectSSH, execCommand, createSymlink, killProcessByPattern } from '@/lib/ssh';
 import path from 'path';
-
-function requireAuth(request: NextRequest) {
-  const auth = request.headers.get('authorization');
-  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
-    throw new Error('Unauthorized');
-  }
-}
+import { requireApiToken as requireAuth } from '@/lib/api-auth';
 
 async function recordStep(deploymentId: number, key: string, label: string, ok: boolean, log?: string) {
   await db.insert(deploymentSteps).values({
@@ -28,12 +22,12 @@ async function recordStep(deploymentId: number, key: string, label: string, ok: 
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     requireAuth(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     if (!id || isNaN(parseInt(id))) {
       return NextResponse.json({
@@ -69,12 +63,29 @@ export async function POST(
       }, { status: 400 });
     }
 
+    const {
+      systemId,
+      projectId,
+      packageId,
+      targetId,
+    } = currentDeployment;
+    if (
+      systemId == null ||
+      projectId == null ||
+      packageId == null ||
+      targetId == null
+    ) {
+      return NextResponse.json({
+        error: 'Deployment is missing required project, package, system, or target references'
+      }, { status: 400 });
+    }
+
     // Create rollback deployment record
     const rollbackDeployment = await db.insert(deployments).values({
-      systemId: currentDeployment.systemId,
-      projectId: currentDeployment.projectId,
-      packageId: currentDeployment.packageId, // Same package, different release
-      targetId: currentDeployment.targetId,
+      systemId,
+      projectId,
+      packageId, // Same package, different release
+      targetId,
       status: 'pending',
       startedAt: Date.now()
     }).returning();
@@ -84,9 +95,9 @@ export async function POST(
 
     try {
       // Get project, package, and target details
-      const project = await db.select().from(projects).where(eq(projects.id, currentDeployment.projectId)).limit(1);
-      const pkg = await db.select().from(packages).where(eq(packages.id, currentDeployment.packageId)).limit(1);
-      const target = await db.select().from(targets).where(eq(targets.id, currentDeployment.targetId)).limit(1);
+      const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+      const pkg = await db.select().from(packages).where(eq(packages.id, packageId)).limit(1);
+      const target = await db.select().from(targets).where(eq(targets.id, targetId)).limit(1);
 
       if (!project.length || !pkg.length || !target.length) {
         throw new Error('Unable to find deployment dependencies');
@@ -100,8 +111,8 @@ export async function POST(
       const previousDeployments = await db.select()
         .from(deployments)
         .where(and(
-          eq(deployments.projectId, currentDeployment.projectId),
-          eq(deployments.targetId, currentDeployment.targetId),
+          eq(deployments.projectId, projectId),
+          eq(deployments.targetId, targetId),
           eq(deployments.status, 'success')
         ))
         .orderBy(desc(deployments.startedAt))
@@ -216,16 +227,18 @@ export async function POST(
         });
 
       } catch (rollbackError) {
+        const rollbackMessage =
+          rollbackError instanceof Error ? rollbackError.message : 'Rollback failed';
         // Record failure step
-        await recordStep(rollbackId, 'error', 'Rollback failed', false, rollbackError.message);
-        steps.push({ key: 'error', label: 'Rollback failed', ok: false, log: rollbackError.message });
+        await recordStep(rollbackId, 'error', 'Rollback failed', false, rollbackMessage);
+        steps.push({ key: 'error', label: 'Rollback failed', ok: false, log: rollbackMessage });
 
         // Update rollback deployment status
         await db.update(deployments)
           .set({
             status: 'failed',
             finishedAt: Date.now(),
-            error: rollbackError.message
+            error: rollbackMessage
           })
           .where(eq(deployments.id, rollbackId));
 

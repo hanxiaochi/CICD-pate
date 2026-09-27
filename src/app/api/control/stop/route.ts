@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { hasValidApiToken } from "@/lib/api-auth";
 
 const g = globalThis as any;
 if (!g.__PROCESSES__) g.__PROCESSES__ = [] as any[];
 
 export async function POST(req: Request) {
+  if (!hasValidApiToken(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const body = await req.json().catch(() => ({}));
   const { pid, mode = "nohup", workdir, stop_script } = body || {};
 

@@ -8,13 +8,7 @@ import { decryptCredential } from '@/lib/encryption';
 import { connectSSH, connectSFTP, execCommand, createSymlink, killProcessByPattern } from '@/lib/ssh';
 import path from 'path';
 import fs from 'fs/promises';
-
-function requireAuth(request: NextRequest) {
-  const auth = request.headers.get('authorization');
-  if (!auth || !auth.startsWith('Bearer ') || !auth.slice(7).trim()) {
-    throw new Error('Unauthorized');
-  }
-}
+import { requireApiToken as requireAuth } from '@/lib/api-auth';
 
 async function recordStep(deploymentId: number, key: string, label: string, ok: boolean, log?: string) {
   await db.insert(deploymentSteps).values({
