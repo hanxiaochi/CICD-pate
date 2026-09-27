@@ -1,139 +1,153 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { apiUrl, withAuth } from "@/lib/api";
+
+type Project = { id: number; name: string; vcsType: string; systemName: string | null };
+type Target = { id: number; name: string; env: string };
+type Deployment = {
+  id: number;
+  status: string;
+  startedAt: number;
+  projectName: string;
+  targetName: string;
+};
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [projStats, setProjStats] = useState<{ total: number; git: number; svn: number }>({ total: 0, git: 0, svn: 0 });
-  const [targetsTotal, setTargetsTotal] = useState<number | null>(null);
-  const [errors, setErrors] = useState<{ projects?: string; targets?: string }>({});
-  const [tick, setTick] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [systemsTotal, setSystemsTotal] = useState(0);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [targets, setTargets] = useState<Target[]>([]);
+  const [deployments, setDeployments] = useState<Deployment[]>([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [systemsResponse, projectsResponse, targetsResponse, historyResponse] = await Promise.all([
+        fetch(apiUrl("/api/systems"), withAuth()),
+        fetch(apiUrl("/api/projects"), withAuth()),
+        fetch(apiUrl("/api/targets?pageSize=100"), withAuth()),
+        fetch(apiUrl("/api/deployments/history"), withAuth()),
+      ]);
+
+      if (![systemsResponse, projectsResponse, targetsResponse, historyResponse].every((response) => response.ok)) {
+        throw new Error("部分运营数据加载失败");
+      }
+
+      const [systemsData, projectsData, targetsData, historyData] = await Promise.all([
+        systemsResponse.json(),
+        projectsResponse.json(),
+        targetsResponse.json(),
+        historyResponse.json(),
+      ]);
+
+      setSystemsTotal(Array.isArray(systemsData) ? systemsData.length : 0);
+      setProjects(Array.isArray(projectsData) ? projectsData : []);
+      setTargets(Array.isArray(targetsData?.items) ? targetsData.items : []);
+      setDeployments(Array.isArray(historyData) ? historyData : []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "运营数据加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    setErrors({});
-    setLoading(true);
-    const token = localStorage.getItem("bearer_token") || "";
-    (async () => {
-      try {
-        const res = await fetch("/api/projects", {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          cache: "no-store",
-        });
-        const data = await res.json();
-        const total = Array.isArray(data) ? data.length : 0;
-        const git = Array.isArray(data) ? data.filter((p: any) => p.repo_type === "git").length : 0;
-        const svn = Array.isArray(data) ? data.filter((p: any) => p.repo_type === "svn").length : 0;
-        setProjStats({ total, git, svn });
-      } catch {
-        setErrors((prev) => ({ ...prev, projects: "failed" }));
-      }
+    void load();
+  }, [load]);
 
-      try {
-        const res2 = await fetch("/api/targets?pageSize=1", {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          cache: "no-store",
-        });
-        if (res2.ok) {
-          const d = await res2.json();
-          setTargetsTotal(typeof d?.total === "number" ? d.total : null);
-        } else {
-          setErrors((prev) => ({ ...prev, targets: "failed" }));
-        }
-      } catch {
-        setErrors((prev) => ({ ...prev, targets: "failed" }));
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [tick]);
-
-  const hasLive = !loading && (projStats.total > 0 || targetsTotal !== null);
+  const projectStats = useMemo(() => ({
+    git: projects.filter((project) => project.vcsType === "git").length,
+    svn: projects.filter((project) => project.vcsType === "svn").length,
+  }), [projects]);
+  const targetStats = useMemo(() => ({
+    prod: targets.filter((target) => target.env === "prod").length,
+    staging: targets.filter((target) => target.env === "staging").length,
+    dev: targets.filter((target) => target.env === "dev").length,
+  }), [targets]);
+  const deploymentStats = useMemo(() => ({
+    success: deployments.filter((deployment) => deployment.status === "success").length,
+    failed: deployments.filter((deployment) => deployment.status === "failed").length,
+  }), [deployments]);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">项目总览</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">交付运行总览</h1>
+          <p className="mt-1 text-sm text-muted-foreground">系统、项目、目标机与发布记录来自当前数据库。</p>
+        </div>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">{hasLive ? "实时数据" : "演示界面"}</Badge>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setErrors({});
-              setLoading(true);
-              setTick((t) => t + 1);
-            }}
-            disabled={loading}
-          >
-            {loading ? "刷新中…" : "刷新"}
+          <Badge variant="secondary">本地持久化数据</Badge>
+          <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+            {loading ? "刷新中..." : "刷新"}
           </Button>
         </div>
       </div>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader>
-            <CardTitle>项目数量</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>业务系统</CardTitle></CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{loading ? "…" : projStats.total || 6}</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              {loading ? "加载中…" : `Git ${projStats.git || 4} / SVN ${projStats.svn || 2}`}
-            </p>
+            <p className="text-3xl font-bold">{loading ? "..." : systemsTotal}</p>
+            <p className="mt-2 text-xs text-muted-foreground">按系统组织项目与发布</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>最近构建</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>交付项目</CardTitle></CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">3 成功</p>
-            <p className="text-xs text-muted-foreground mt-2">过去 24 小时</p>
+            <p className="text-3xl font-bold">{loading ? "..." : projects.length}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Git {projectStats.git} / SVN {projectStats.svn}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>部署目标</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>受控目标</CardTitle></CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{loading ? "…" : `${targetsTotal ?? 4} 台`}</p>
-            <p className="text-xs text-muted-foreground mt-2">生产 2 / 测试 2</p>
+            <p className="text-3xl font-bold">{loading ? "..." : targets.length}</p>
+            <p className="mt-2 text-xs text-muted-foreground">生产 {targetStats.prod} / 预发 {targetStats.staging} / 开发 {targetStats.dev}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>活跃进程</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>发布记录</CardTitle></CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">8</p>
-            <p className="text-xs text-muted-foreground mt-2">Java 5 / Node 3</p>
+            <p className="text-3xl font-bold">{loading ? "..." : deployments.length}</p>
+            <p className="mt-2 text-xs text-muted-foreground">成功 {deploymentStats.success} / 失败 {deploymentStats.failed}</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle>近期活动</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>[12:03] 项目 A 构建成功，版本 1.2.3</p>
-            <p>[11:48] 部署到 10.0.0.3 完成</p>
-            <p>[10:15] 项目 B 发布至测试环境</p>
-            <p>[09:02] 同步 SVN 仓库完成</p>
+          <CardHeader><CardTitle>最近发布</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {deployments.slice(0, 4).map((deployment) => (
+              <div key={deployment.id} className="flex items-center justify-between gap-4 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{deployment.projectName}</p>
+                  <p className="truncate text-xs text-muted-foreground">{deployment.targetName} · {new Date(deployment.startedAt).toLocaleString()}</p>
+                </div>
+                <Badge variant={deployment.status === "success" ? "secondary" : "destructive"}>
+                  {deployment.status === "success" ? "成功" : "失败"}
+                </Badge>
+              </div>
+            ))}
+            {!loading && deployments.length === 0 && <p className="text-sm text-muted-foreground">暂无发布记录</p>}
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>说明</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>运行边界</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>这里展示轻量级 CI/CD 工具的核心指标与活动流。</p>
-            <p>后端将使用 Rails + SQLite3 实现，前端当前为原型界面。</p>
-            <p>后续会接入 SSH、Git/SVN、nohup 等实际操作。</p>
+            <p>面板将项目、目标机、发布步骤、回滚和远程控制统一到可审查的操作路径。</p>
+            <p>当前作品集数据全部为合成数据，目标地址均指向本机且不包含 SSH 凭据。</p>
+            <p>真实环境仍需完成身份体系、RBAC、命令与路径白名单、目标机验收和独立安全评审。</p>
           </CardContent>
         </Card>
       </div>

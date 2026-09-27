@@ -11,6 +11,11 @@ async function seedTargets() {
     await seedTargets();
 }
 
+async function seedPortfolioData() {
+    const { seedPortfolioData } = await import('@/db/seeds/portfolio');
+    await seedPortfolioData();
+}
+
 export async function POST(request: NextRequest) {
   try {
     requireApiToken(request);
@@ -18,12 +23,13 @@ export async function POST(request: NextRequest) {
     
     await seedUsers();
     await seedTargets();
+    await seedPortfolioData();
     
     console.log('Database seeding completed successfully');
     
     return NextResponse.json({
       success: true,
-      message: 'Database seeded successfully with users and targets'
+      message: 'Database seeded successfully with synthetic portfolio data'
     }, { status: 200 });
     
   } catch (error) {

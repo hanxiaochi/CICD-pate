@@ -6,6 +6,14 @@
 
 **English summary:** A lightweight operations control plane for project, target, deployment, rollback, remote process and log workflows. The current hardening branch focuses on reproducible dependencies, explicit credential boundaries and reviewable operational controls rather than claiming production readiness from a UI alone.
 
+## 作品集实拍
+
+以下画面来自本机 `file:` libSQL 数据库，使用幂等合成种子生成，不包含客户数据、真实服务器地址或 SSH 凭据。
+
+![交付运行总览](docs/screenshots/cicd-dashboard.png)
+
+![发布历史](docs/screenshots/cicd-deployment-history.png)
+
 - 技术栈：Next.js 15 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
 - 后端路由：使用 Next.js 内置 API（app/api/*）
 - 远程控制：通过 SSH 在目标机执行 nohup/shell 脚本并读取日志流
@@ -34,6 +42,17 @@
    npm run build
    npm start
    ```
+
+## 本地合成演示
+
+可使用 `file:` 数据库在不连接 Turso 或远程服务器的情况下验证页面与 API：
+
+1. 使用 `drizzle-kit push` 将 `src/db/schema.ts` 写入系统临时目录中的全新数据库。
+2. 通过环境变量配置一次性管理员凭据和 API Token 后启动应用。
+3. 使用有效 Bearer Token 调用 `POST /api/seed`，生成无凭据的用户、目标机、系统、项目、构建包和发布历史。
+4. 重复调用种子不会重复创建记录。
+
+`scripts/capture-portfolio.mjs` 可通过本机 Chrome DevTools 协议生成固定 1440×900 截图。脚本只从环境变量读取临时登录信息，不保存密码或 API Token。
 
 ## 常用脚本
 - `npm run dev`：本地开发（Turbopack）
@@ -88,7 +107,7 @@ root
 
 ## 当前验证状态
 
-2026-09-28 的加固分支已完成可复现安装修复、依赖收敛、安全小版本升级、API Token 校验、Next.js 15.5 兼容调整、ESLint 和生产构建。依赖审计为 0 个已知漏洞，认证黑盒检查覆盖错误登录、正确登录、缺失 Bearer 和任意 Bearer。
+2026-09-28 的加固分支已完成可复现安装修复、依赖收敛、安全小版本升级、API Token 校验、Next.js 15.5 兼容调整、ESLint 和生产构建。依赖审计为 0 个已知漏洞，认证黑盒检查覆盖错误登录、正确登录、缺失 Bearer 和任意 Bearer。本地合成数据库、幂等种子、真实 API 数据总览、发布历史页面和可重复截图流程也已验证。
 
 完整命令、结果、警告和未验证项见 [验证记录](docs/VERIFICATION-2026-09-28.md)。这些结果不代表真实数据库、SSH/SFTP、远程部署、回滚、容器或客户生产环境已经验收。
 

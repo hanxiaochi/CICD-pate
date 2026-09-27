@@ -60,11 +60,3 @@ export async function seedUsers() {
 export async function seedDefaultAdmin() {
     await seedUsers();
 }
-
-async function main() {
-    await seedUsers();
-}
-
-main().catch((error) => {
-    console.error('❌ Seeder failed:', error);
-});

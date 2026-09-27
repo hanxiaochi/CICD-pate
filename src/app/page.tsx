@@ -23,11 +23,11 @@ export default function Home() {
               <StatusBadge />
             </div>
             <h1 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              轻量级 CI/CD 平台（Rails + SQLite）
+              轻量级 CI/CD 与远程运维控制台
             </h1>
             <p className="text-muted-foreground max-w-3xl">
-              目标：拉取 Git/SVN 项目，编译打包，部署到线上服务器；读取服务器目录与进程，
-              并通过 Web 界面启动/停止/重启应用；支持用户权限管理；可通过 nohup 管理 Java 项目。
+              统一管理项目、构建包、目标机、发布步骤、回滚、远程进程和日志操作。
+              当前实现采用 Next.js、libSQL、SSH/SFTP 与环境变量鉴权，并明确区分本地验证和生产验收。
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/dashboard"><Button>项目总览</Button></Link>
@@ -49,10 +49,10 @@ export default function Home() {
             <CardTitle>技术栈</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>后端：Ruby on Rails</p>
-            <p>数据库：SQLite3</p>
-            <p>界面：中文 UI</p>
-            <p>进程：nohup 管理 Java</p>
+            <p>应用：Next.js 15 + React 19</p>
+            <p>数据：libSQL / Turso</p>
+            <p>远程：SSH2 + SFTP</p>
+            <p>校验：TypeScript + ESLint</p>
           </CardContent>
         </Card>
         <Card>
@@ -60,10 +60,10 @@ export default function Home() {
             <CardTitle>核心能力</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>• 拉取 Git / SVN 项目</p>
-            <p>• 编译与打包流水线</p>
-            <p>• 部署到远程服务器</p>
-            <p>• 目录、进程读取与控制</p>
+            <p>项目与构建包管理</p>
+            <p>目标机和凭据边界</p>
+            <p>发布步骤与历史记录</p>
+            <p>进程、日志与回滚操作</p>
           </CardContent>
         </Card>
         <Card>
@@ -71,19 +71,21 @@ export default function Home() {
             <CardTitle>权限管理</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>角色：管理员 / 开发者 / 访客</p>
-            <p>资源：项目、流水线、部署、控制</p>
-            <p>粒度：读、写、执行</p>
+            <p>管理员凭据由服务端配置</p>
+            <p>API 使用独立 Bearer Token</p>
+            <p>敏感配置不进入代码仓库</p>
+            <p>目标凭据加密后存储</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>下一步</CardTitle>
+            <CardTitle>验证状态</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>在 Rails 中落库模型与控制器。</p>
-            <p>接入 SSH 与进程管理（nohup）。</p>
-            <p>完善权限中间件与审计日志。</p>
+            <p>依赖审计、Lint 与生产构建通过</p>
+            <p>受保护 API 已完成拒绝路径测试</p>
+            <p>本地合成数据库支持可重复演示</p>
+            <p>真实 SSH 与生产部署仍需验收</p>
           </CardContent>
         </Card>
       </section>

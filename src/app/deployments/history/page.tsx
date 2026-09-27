@@ -12,14 +12,14 @@ type Step = { key: string; label: string; ok: boolean };
 
 type DeploymentItem = {
   id: number;
-  systemId: number | null;
-  projectId: number;
-  packageId: number;
-  targetId: number;
+  systemName: string;
+  projectName: string;
+  packageName: string;
+  targetName: string;
   steps: Step[];
   startedAt: number;
-  status: "success" | "failed" | "rolledback";
-  message: string;
+  status: "pending" | "success" | "failed";
+  error: string | null;
 };
 
 export default function DeploymentHistoryPage() {
@@ -31,10 +31,10 @@ export default function DeploymentHistoryPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/deployments"), withAuth());
+      const res = await fetch(apiUrl("/api/deployments/history"), withAuth());
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || "加载失败");
-      setItems(Array.isArray(j.items) ? j.items : []);
+      setItems(Array.isArray(j) ? j : []);
     } catch (e: any) {
       toast.error(e?.message || "加载失败");
     } finally {
@@ -92,25 +92,23 @@ export default function DeploymentHistoryPage() {
               </TableHeader>
               <TableBody>
                 {items.map((it) => {
-                  const canRollback = it.status !== "rolledback";
+                  const canRollback = it.status === "success";
                   return (
                     <>
                       <TableRow key={it.id}>
                         <TableCell className="font-medium">#{it.id}</TableCell>
-                        <TableCell>{it.systemId ?? "-"}</TableCell>
-                        <TableCell>{it.projectId}</TableCell>
-                        <TableCell>{it.packageId}</TableCell>
-                        <TableCell>{it.targetId}</TableCell>
+                        <TableCell>{it.systemName}</TableCell>
+                        <TableCell>{it.projectName}</TableCell>
+                        <TableCell>{it.packageName}</TableCell>
+                        <TableCell>{it.targetName}</TableCell>
                         <TableCell>{new Date(it.startedAt).toLocaleString()}</TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${
                             it.status === "success"
                               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                              : it.status === "rolledback"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
                               : "bg-destructive/10 text-destructive"
                           }`}>
-                            {it.status === "success" ? "成功" : it.status === "rolledback" ? "已回滚" : "失败"}
+                            {it.status === "success" ? "成功" : it.status === "pending" ? "进行中" : "失败"}
                           </span>
                         </TableCell>
                         <TableCell className="text-right space-x-2">
@@ -149,7 +147,7 @@ export default function DeploymentHistoryPage() {
               </TableBody>
             </Table>
           </div>
-          <p className="text-xs text-muted-foreground">说明：演示环境为内存存储，刷新页面或重启将清空历史。真实项目请接入数据库存储。</p>
+          <p className="text-xs text-muted-foreground">当前记录来自数据库。作品集演示使用本地合成数据，不连接真实服务器或生产凭据。</p>
         </CardContent>
       </Card>
     </div>
