@@ -1,5 +1,10 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# local environment and credentials
+.env
+.env.*
+!.env.example
+
 # dependencies
 /node_modules
 /.pnp
@@ -23,6 +28,8 @@
 # misc
 .DS_Store
 *.pem
+*.key
+id_rsa*
 
 # debug
 npm-debug.log*

@@ -1,5 +1,7 @@
 # 轻量化 CI/CD 与远程应用控制平台
 
+> **Security notice:** a historical public commit contained non-placeholder Turso credentials. The tracked `.env` has been removed, but the old token must be revoked in the provider console because deletion from the current tree does not remove Git history. See [Security Status and Credential Recovery](docs/SECURITY-STATUS.md) before running the project.
+
 本项目是基于 Next.js 15（React 19）的全栈应用，提供从项目管理、构建发布、到远程服务器上的应用启动/停止/重启与日志查看的一体化能力。
 
 - 技术栈：Next.js 15 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
