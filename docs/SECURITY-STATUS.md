@@ -4,6 +4,8 @@
 
 A historical public commit added a non-placeholder Turso database URL and authentication token to `.env`. Removing the file from the current tree does not invalidate that token and does not remove it from Git history.
 
+The current portfolio branch no longer connects to Turso by default. It uses a local `file:` database through `DATABASE_URL` and requires no remote database token. This removes the cloud database dependency from normal demonstration use, but it cannot invalidate a credential that was already issued by the provider.
+
 Before using this repository with any database:
 
 1. Revoke the historical Turso token in the provider console.
@@ -30,4 +32,4 @@ This codebase is a portfolio prototype and is not approved for internet-facing p
 
 ## Local setup
 
-Copy `.env.example` to `.env`, replace every placeholder, and keep the resulting file outside Git. Use separate credentials for development, test and production. Never use a public repository secret as a production credential.
+Copy `.env.example` to `.env`, replace every placeholder, and keep the resulting file outside Git. The default local database is `file:./cicd-pate.db` and is ignored by Git. Use separate credentials for development, test and production. Never use a public repository secret as a production credential.

@@ -6,8 +6,7 @@ const dbConfig: Config = defineConfig({
   out: './drizzle',
   dialect: 'turso',
   dbCredentials: {
-    url: process.env.TURSO_CONNECTION_URL!,
-    authToken: process.env.TURSO_AUTH_TOKEN!,
+    url: process.env.DATABASE_URL?.trim() || 'file:./cicd-pate.db',
   },
 });
 

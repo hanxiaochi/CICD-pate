@@ -50,7 +50,7 @@ export default function Home() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>应用：Next.js 15 + React 19</p>
-            <p>数据：libSQL / Turso</p>
+            <p>数据：本机 SQLite / libSQL</p>
             <p>远程：SSH2 + SFTP</p>
             <p>校验：TypeScript + ESLint</p>
           </CardContent>

@@ -18,6 +18,11 @@
 # testing
 /coverage
 
+# local portfolio database
+*.db
+*.db-shm
+*.db-wal
+
 # next.js
 /.next/
 /out/

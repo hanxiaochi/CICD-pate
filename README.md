@@ -1,6 +1,6 @@
 # 轻量化 CI/CD 与远程应用控制平台
 
-> **Security notice:** a historical public commit contained non-placeholder Turso credentials. The tracked `.env` has been removed, but the old token must be revoked in the provider console because deletion from the current tree does not remove Git history. See [Security Status and Credential Recovery](docs/SECURITY-STATUS.md) before running the project.
+> **Security notice:** a historical public commit contained non-placeholder Turso credentials. The current project now defaults to a local database and no longer needs a Turso URL or token, but the historical token must still be revoked because deletion from the current tree does not invalidate it or remove Git history. See [Security Status and Credential Recovery](docs/SECURITY-STATUS.md).
 
 本项目是基于 Next.js 15（React 19）的全栈应用，提供从项目管理、构建发布、到远程服务器上的应用启动/停止/重启与日志查看的一体化能力。
 
@@ -31,13 +31,17 @@
    ```bash
    npm install
    ```
-2. 复制 `.env.example` 为本机 `.env`，为 Turso、凭据加密、管理员登录和 API Token 配置独立的开发值。不要复用生产凭据，不要提交 `.env`。
-3. 启动开发服务
+2. 复制 `.env.example` 为本机 `.env`，为凭据加密、管理员登录和 API Token 配置独立的开发值。数据库默认写入本机 `cicd-pate.db`，无需云数据库账号或令牌。不要复用生产凭据，不要提交 `.env`。
+3. 初始化本机数据库
+   ```bash
+   npx drizzle-kit push
+   ```
+4. 启动开发服务
    ```bash
    npm run dev
    # 默认 http://localhost:3000
    ```
-4. 构建与生产启动
+5. 构建与生产启动
    ```bash
    npm run build
    npm start
@@ -45,9 +49,9 @@
 
 ## 本地合成演示
 
-可使用 `file:` 数据库在不连接 Turso 或远程服务器的情况下验证页面与 API：
+项目默认使用本机 `file:` 数据库，不连接云数据库或远程服务器：
 
-1. 使用 `drizzle-kit push` 将 `src/db/schema.ts` 写入系统临时目录中的全新数据库。
+1. 使用 `drizzle-kit push` 将 `src/db/schema.ts` 写入全新的本机数据库文件。
 2. 通过环境变量配置一次性管理员凭据和 API Token 后启动应用。
 3. 使用有效 Bearer Token 调用 `POST /api/seed`，生成无凭据的用户、目标机、系统、项目、构建包和发布历史。
 4. 重复调用种子不会重复创建记录。
@@ -98,7 +102,7 @@ root
 - GET `/api/control/logs?path=<log_file>`
 
 ## 环境变量
-- 数据库：`TURSO_CONNECTION_URL`、`TURSO_AUTH_TOKEN`。
+- 数据库：可选 `DATABASE_URL`，默认值为 `file:./cicd-pate.db`。作品集演示不需要远程数据库或数据库访问令牌。
 - 凭据加密：`SSH_SECRET`、`ENCRYPTION_KEY`，每个环境使用不同的高熵值。
 - 管理员登录：`CICD_ADMIN_USERNAME`、`CICD_ADMIN_PASSWORD`。
 - API 认证：`CICD_API_TOKEN`。服务端拒绝缺失或不匹配的 Bearer Token。
@@ -109,7 +113,9 @@ root
 
 2026-09-28 的加固分支已完成可复现安装修复、依赖收敛、安全小版本升级、API Token 校验、Next.js 15.5 兼容调整、ESLint 和生产构建。依赖审计为 0 个已知漏洞，认证黑盒检查覆盖错误登录、正确登录、缺失 Bearer 和任意 Bearer。本地合成数据库、幂等种子、真实 API 数据总览、发布历史页面和可重复截图流程也已验证。
 
-完整命令、结果、警告和未验证项见 [验证记录](docs/VERIFICATION-2026-09-28.md)。这些结果不代表真实数据库、SSH/SFTP、远程部署、回滚、容器或客户生产环境已经验收。
+2026-09-29 的后续验证进一步移除了正常演示对 Turso 的依赖：默认 `DATABASE_URL` 指向本机文件，临时 SQLite/libSQL 数据库完成建表，lint 和 25 路由生产构建通过，生产依赖审计仍为 0 个已知漏洞；本地运行时登录、合成种子、系统列表、发布历史和仪表盘均通过。见 [本地数据库验证记录](docs/VERIFICATION-2026-09-29-LOCAL-DATABASE.md)。
+
+完整命令、结果、警告和未验证项见 [加固验证记录](docs/VERIFICATION-2026-09-28.md)和[本地数据库验证记录](docs/VERIFICATION-2026-09-29-LOCAL-DATABASE.md)。这些结果不代表 SSH/SFTP、远程部署、回滚、容器或客户生产环境已经验收。
 
 ## 开发注意事项
 - 仅使用 Tailwind CSS 进行样式编写（禁用 styled-jsx）。

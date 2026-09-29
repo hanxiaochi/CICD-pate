@@ -8,8 +8,12 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      DATABASE_URL: file:/app/data/cicd-pate.db
     ports:
       - "3000:3000"
+    volumes:
+      - cicd-data:/app/data
     restart: always
     networks:
       - cicd-net
@@ -31,3 +35,6 @@ services:
 networks:
   cicd-net:
     driver: bridge
+
+volumes:
+  cicd-data:
